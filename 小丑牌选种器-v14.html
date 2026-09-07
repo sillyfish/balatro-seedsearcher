@@ -1,0 +1,895 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>小丑牌选种器</title>
+<style>
+  :root{--felt:#28524f;--felt-dark:#1c3a38;--chip:#f4eee4;
+        --red:#fe5f55;--blue:#009dff;--gold:#ffa200;--dim:#8fa9a6;}
+  *{box-sizing:border-box}
+  body{margin:0;padding:20px 16px 60px;background:var(--felt-dark);color:var(--chip);
+       font-family:ui-monospace,"PingFang SC","Microsoft YaHei",Menlo,monospace;font-size:15px;line-height:1.55}
+  .wrap{max-width:640px;margin:0 auto}
+  h1{font-size:26px;margin:0 0 4px;font-weight:800;letter-spacing:-0.02em}
+  .sub{color:var(--dim);font-size:13px;margin:0 0 24px}
+  fieldset{border:2px solid var(--felt);border-radius:10px;background:var(--felt);
+           padding:14px 16px 18px;margin:0 0 18px}
+  legend{padding:0 8px;font-size:13px;color:var(--gold);font-weight:700}
+  label{display:block;font-size:12px;color:var(--dim);margin:10px 0 4px}
+  input,select{width:100%;padding:9px 11px;border-radius:7px;border:2px solid var(--felt-dark);
+        background:var(--felt-dark);color:var(--chip);font:inherit;font-size:15px}
+  input:focus,select:focus{outline:none;border-color:var(--blue)}
+  .row{display:flex;gap:10px}.row>div{flex:1}
+  button{width:100%;margin-top:14px;padding:12px;border:none;border-radius:8px;cursor:pointer;
+         background:var(--red);color:#fff;font:inherit;font-size:16px;font-weight:700}
+  button.ghost{background:var(--felt-dark);color:var(--dim);font-size:14px;padding:9px}
+  button:active{transform:translateY(2px)}
+  .want{display:grid;grid-template-columns:1fr 82px 62px 34px;gap:6px;align-items:center;margin-top:8px}
+  .want select,.want input{padding:8px 7px;font-size:14px}
+  .want .del{width:34px;margin:0;padding:8px 0;background:transparent;color:var(--dim);font-size:18px}
+  .hit{padding:10px 12px;margin-top:8px;border-radius:8px;background:var(--felt-dark)}
+  .hit .seed{font-size:19px;font-weight:800;color:var(--gold);letter-spacing:0.08em}
+  .hit .where{font-size:12.5px;color:var(--dim);margin-top:3px;line-height:1.75}
+  .ed{color:var(--red);font-weight:700}
+  .stat{font-size:13px;color:var(--dim);margin-top:12px;line-height:1.8}
+  .stat b{color:var(--chip);font-weight:700}
+  .preview{font-size:13px;line-height:1.9}
+  .preview .a{color:var(--gold);font-weight:700}
+  .preview .o{color:var(--dim)}
+  .en{color:var(--dim);font-size:11px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>小丑牌选种器</h1>
+<p class="sub">挑小丑、卡底注、限定版本，剩下交给它。</p>
+
+<fieldset>
+  <legend>我想要</legend>
+  <div id="wants"></div>
+  <button class="ghost" id="add">+ 再加一张</button>
+  <div class="row" style="margin-top:14px">
+    <div><label>每底注看几个商店位</label><input id="slots" type="number" value="6"></div>
+    <div><label>找到几个就停</label><input id="found" type="number" value="5"></div>
+  </div>
+  <label style="display:flex;align-items:center;gap:8px;margin-top:14px;color:var(--chip);font-size:14px">
+    <input type="checkbox" id="packs" checked style="width:auto;margin:0"> 连卡包里的一起搜
+  </label>
+  <label>从哪个种子开始数（留空＝随机找个地方开始）</label>
+  <input id="from" placeholder="留空就好" autocapitalize="characters" spellcheck="false">
+  <button id="go">开始捞</button>
+  <button class="ghost" id="stop" style="display:none">停下</button>
+  <div class="stat" id="stat"></div>
+</fieldset>
+
+<fieldset>
+  <legend>捞到的种子</legend>
+  <div id="hits" style="font-size:14px;color:var(--dim)">还没开始。</div>
+</fieldset>
+
+<fieldset>
+  <legend>单个种子看详情</legend>
+  <input id="one" placeholder="输入种子" autocapitalize="characters" spellcheck="false">
+  <button class="ghost" id="peek" style="margin-top:10px">看看这局商店卖啥</button>
+  <div class="preview" id="pv" style="margin-top:10px"></div>
+</fieldset>
+</div>
+
+<script type="text/plain" id="engine-src">
+const POOLS = {
+ 1: ["Joker","Greedy Joker","Lusty Joker","Wrathful Joker","Gluttonous Joker","Jolly Joker","Zany Joker","Mad Joker","Crazy Joker","Droll Joker","Sly Joker","Wily Joker","Clever Joker","Devious Joker","Crafty Joker","Half Joker","Credit Card","Banner","Mystic Summit"," 8 Ball","Misprint","Raised Fist","Chaos the Clown","Scary Face","Abstract Joker","Delayed Gratification","Gros Michel","Even Steven","Odd Todd","Scholar","Business Card","Supernova","Ride the Bus","Egg","Runner","Ice Cream","Splash","Blue Joker","Faceless Joker","Green Joker","Superposition","To Do List","Cavendish","Red Card","Square Joker","Riff raff","Photograph","Reserved Parking","Mail In Rebate","Hallucination","Fortune Teller","Juggler","Drunkard","Golden Joker","Popcorn","Walkie Talkie","Smiley Face","Golden Ticket","Swashbuckler","Hanging Chad","Shoot the Moon"],
+ 2: ["Joker Stencil","Four Fingers","Mime","Ceremonial Dagger","Marble Joker","Loyalty Card","Dusk","Fibonacci","Steel Joker","Hack","Pareidolia","Space Joker","Burglar","Blackboard","Sixth Sense","Constellation","Hiker","Card Sharp","Madness","Seance","Vampire","Shortcut","Hologram","Cloud 9","Rocket","Midas Mask","Luchador","Gift Card","Turtle Bean","Erosion","To the Moon","Stone Joker","Lucky Cat","Bull","Diet Cola","Trading Card","Flash Card","Spare Trousers","Ramen","Seltzer","Castle","Mr Bones","Acrobat","Sock and Buskin","Troubadour","Certificate","Smeared Joker","Throwback","Rough Gem","Bloodstone","Arrowhead","Onyx Agate","Glass Joker","Showman","Flower Pot","Merry Andy","Oops All 6s","The Idol","Seeing Double","Matador","Satellite","Cartomancer","Astronomer","Bootstraps"],
+ 3: ["DNA","Vagabond","Baron","Obelisk","Baseball Card","Ancient Joker","Campfire","Blueprint","Wee Joker","Hit the Road","The Duo","The Trio","The Family","The Order","The Tribe","Stuntman","Invisible Joker","Brainstorm","Drivers License","Burnt Joker"],
+ 4: ["Canio","Triboulet","Yorick","Chicot","Perkeo"]
+};
+/* ===== 引擎（32 位手写版，逻辑与对拍通过的 BigInt 版完全一致） ===== */
+function pseudohash(str){
+  let num=1;
+  for(let i=str.length;i>=1;i--)
+    num=((1.1239285023/num)*str.charCodeAt(i-1)*Math.PI+Math.PI*i)%1;
+  return num;
+}
+const round13=x=>parseFloat(x.toFixed(13));
+const _b=new ArrayBuffer(8),_f=new Float64Array(_b),_u=new Uint32Array(_b);
+
+class LuaRandom{
+  constructor(){this.hi=new Uint32Array(4);this.lo=new Uint32Array(4);}
+  gen(i,k,q,s){
+    let zh=this.hi[i],zl=this.lo[i];
+    /* a = ((z<<q) ^ z) >> (k-s) */
+    let ah,al;
+    if(q>=32){ah=zl<<(q-32);al=0;}
+    else{ah=(zh<<q)|(zl>>>(32-q));al=zl<<q;}
+    ah^=zh;al^=zl;
+    const n=k-s;
+    if(n>=32){al=ah>>>(n-32);ah=0;}
+    else if(n>0){al=(al>>>n)|(ah<<(32-n));ah=ah>>>n;}
+    /* b = (z & (M64<<(64-k))) << s */
+    const m=64-k;                       /* 1..17，恒 <32 */
+    let bh=zh,bl=zl&((0xFFFFFFFF<<m)>>>0);
+    if(s>=32){bh=bl<<(s-32);bl=0;}
+    else{bh=(bh<<s)|(bl>>>(32-s));bl=bl<<s;}
+    const rh=(ah^bh)>>>0,rl=(al^bl)>>>0;
+    this.hi[i]=rh;this.lo[i]=rl;
+    return [rh,rl];
+  }
+  step(){
+    let h=0,l=0,r;
+    r=this.gen(0,63,31,18);h^=r[0];l^=r[1];
+    r=this.gen(1,58,19,28);h^=r[0];l^=r[1];
+    r=this.gen(2,55,24, 7);h^=r[0];l^=r[1];
+    r=this.gen(3,47,21, 8);h^=r[0];l^=r[1];
+    this._h=h>>>0;this._l=l>>>0;
+  }
+  seed(d){
+    let r=0x11090601;
+    for(let i=0;i<4;i++){
+      const m=(1<<(r&255))>>>0;r>>>=8;
+      d=d*3.14159265358979323846+2.7182818284590452354;
+      _f[0]=d;let lo=_u[0];const hi=_u[1];
+      if(lo<m)lo=(lo+m)>>>0;
+      this.hi[i]=hi;this.lo[i]=lo;
+    }
+    for(let i=0;i<10;i++)this.step();
+  }
+  double(){
+    this.step();
+    _u[1]=((this._h&0x000FFFFF)|0x3FF00000)>>>0;
+    _u[0]=this._l;
+    return _f[0]-1.0;
+  }
+  int(n){return Math.floor(this.double()*n)+1;}
+}
+class Run{
+  constructor(s){this.rng=new LuaRandom();this.state=Object.create(null);this.reset(s);}
+  reset(s){
+    this.seedStr=s;this.hashed=pseudohash(s);
+    for(const k in this.state)delete this.state[k];
+    return this;
+  }
+  pseudoseed(key){
+    let v=this.state[key];
+    if(v===undefined)v=pseudohash(key+this.seedStr);
+    v=Math.abs(round13((2.134453429141+v*1.72431234)%1));
+    this.state[key]=v;
+    return (v+this.hashed)/2;
+  }
+  rand(key){this.rng.seed(this.pseudoseed(key));return this.rng.double();}
+  pick(key,list){this.rng.seed(this.pseudoseed(key));return list[this.rng.int(list.length)-1];}
+}
+
+/* ========== 商店 ========== */
+const EDITIONS=[[0.997,"负片"],[0.994,"多彩"],[0.98,"全息"],[0.96,"闪箔"]];
+
+function jokerEdition(run,src,ante){
+  const p=run.rand("edi"+src+ante);
+  for(const [t,name] of EDITIONS) if(p>t) return name;
+  return null;
+}
+
+/* 商店第 n 个位置卖什么 */
+function shopSlot(run,ante){
+  const t=run.rand("cdt"+ante)*28;
+  /* 商店的消耗牌不 soulable（create_card 第六个参数没传），永远不会翻灵魂牌 */
+  if(t>=20) return {type:t<24?"塔罗牌":"星球牌"};
+  const r=run.rand("rarity"+ante+"sho");
+  const rarity=r>0.95?3:(r>0.7?2:1);
+  const name=run.pick("Joker"+rarity+"sho"+ante,POOLS[rarity]);
+  return {type:"joker",name,rarity,edition:jokerEdition(run,"sho",ante)};
+}
+
+
+/* ===== 消耗牌池 ===== */
+const TAROTS=["The Fool","The Magician","The High Priestess","The Empress","The Emperor","The Hierophant","The Lovers","The Chariot","Justice","The Hermit","The Wheel of Fortune","Strength","The Hanged Man","Death","Temperance","The Devil","The Tower","The Star","The Moon","The Sun","Judgement","The World"];
+const PLANETS=["Mercury","Venus","Earth","Mars","Jupiter","Saturn","Uranus","Neptune","Pluto","Planet X","Ceres","Eris"];
+const SPECTRALS=["Familiar","Grim","Incantation","Talisman","Aura","Wraith","Sigil","Ouija","Ectoplasm","Immolate","Ankh","Deja Vu","Hex","Trance","Medium","Cryptid","RETRY","RETRY"];
+
+/* 卡包权重（第一项是"这个位子没有包"） */
+const PACKS=[["RETRY",22.42],["Arcana Pack",4],["Jumbo Arcana Pack",2],["Mega Arcana Pack",0.5],
+["Celestial Pack",4],["Jumbo Celestial Pack",2],["Mega Celestial Pack",0.5],
+["Standard Pack",4],["Jumbo Standard Pack",2],["Mega Standard Pack",0.5],
+["Buffoon Pack",1.2],["Jumbo Buffoon Pack",0.6],["Mega Buffoon Pack",0.15],
+["Spectral Pack",0.6],["Jumbo Spectral Pack",0.3],["Mega Spectral Pack",0.07]];
+
+/* 加权抽签：拿第一项的权重当总量，往后累加 */
+Run.prototype.weighted=function(key,items){
+  this.rng.seed(this.pseudoseed(key));
+  const poll=this.rng.double()*items[0][1];
+  let idx=1,w=0;
+  while(w<poll){w+=items[idx][1];idx++;}
+  return items[idx-1][0];
+};
+
+/* 带锁的抽取：抽到锁上的就 _resample2、_resample3 重抽 */
+Run.prototype.choice=function(key,items,locked){
+  this.rng.seed(this.pseudoseed(key));
+  let it=items[this.rng.int(items.length)-1];
+  if(it!=="RETRY"&&!(locked&&locked.has(it)))return it;
+  let n=2;
+  while(n<=1000){
+    this.rng.seed(this.pseudoseed(key+"_resample"+n));
+    it=items[this.rng.int(items.length)-1];
+    n++;
+    if(it!=="RETRY"&&!(locked&&locked.has(it)))return it;
+  }
+  return it;
+};
+
+/* 包的种类 → 里面几张、能选几张 */
+function packInfo(p){
+  if(p.startsWith("Mega "))  return {kind:p.slice(5), size:p.includes("Buffoon")?4:5, pick:2};
+  if(p.startsWith("Jumbo ")) return {kind:p.slice(6), size:p.includes("Buffoon")?4:5, pick:1};
+  return {kind:p, size:p.includes("Buffoon")?2:3, pick:1};
+}
+
+const PACK_CN={"Arcana Pack":"奇术包","Celestial Pack":"天体包","Standard Pack":"标准包",
+               "Buffoon Pack":"小丑包","Spectral Pack":"幻灵包"};
+function packName(p){
+  const i=packInfo(p);
+  return (p.startsWith("Mega ")?"超大":p.startsWith("Jumbo ")?"大":"")+(PACK_CN[i.kind]||i.kind);
+}
+
+/* 包里装了什么 */
+function openPack(run,p,ante){
+  const {kind,size}=packInfo(p);
+  const locked=new Set(),out=[];
+  let soulDone=false,holeDone=false;
+  for(let i=0;i<size;i++){
+    let c;
+    if(kind==="Buffoon Pack"){
+      const r=run.rand("rarity"+ante+"buf");
+      const rarity=r>0.95?3:(r>0.7?2:1);
+      const name=run.choice("Joker"+rarity+"buf"+ante,POOLS[rarity],locked);
+      c={type:"joker",name,rarity,edition:jokerEdition(run,"buf",ante)};
+    } else if(kind==="Arcana Pack"){
+      /* 同一个包里灵魂牌只出一张，出过之后连掷都不掷了 */
+      if(!soulDone&&run.rand("soul_Tarot"+ante)>0.997){c={type:"soul"};soulDone=true;}
+      else c={type:"tarot",name:run.choice("Tarot"+"ar1"+ante,TAROTS,locked)};
+    } else if(kind==="Spectral Pack"){
+      /* 源码里这是两个独立的 if，两次都要掷，后者盖过前者 */
+      const isSoul=!soulDone&&run.rand("soul_Spectral"+ante)>0.997;
+      const isHole=!holeDone&&run.rand("soul_Spectral"+ante)>0.997;
+      if(isHole){c={type:"spectral",name:"Black Hole"};holeDone=true;}
+      else if(isSoul){c={type:"soul"};soulDone=true;}
+      else c={type:"spectral",name:run.choice("Spectral"+"spe"+ante,SPECTRALS,locked)};
+    } else if(kind==="Celestial Pack"){
+      c={type:"planet",name:run.choice("Planet"+"pl1"+ante,PLANETS,locked)};
+    } else { c={type:"card",name:"扑克牌"}; }   /* 标准包暂不细分 */
+    if(c.type==="soul"){
+      /* 灵魂牌造出的传奇走自己的通道：source 是 "sou" */
+      c={type:"joker",name:run.choice("Joker4",POOLS[4]),rarity:4,
+         edition:jokerEdition(run,"sou",ante),soul:true};
+    }
+    if(c.name)locked.add(c.name);
+    out.push(c);
+  }
+  return out;
+}
+
+/* 打完 Boss 底注就 +1，那次商店算下一底注头上：
+   所以底注 1 只有小盲、大盲两次商店（4 个包），之后每底注 3 次（6 个包） */
+function antePacks(run,ante,state){
+  const res=[];
+  const n=(ante===1)?4:6;
+  for(let i=0;i<n;i++){
+    let p;
+    if(ante<=2&&!state.firstPack){ state.firstPack=true; p="Buffoon Pack"; }
+    else p=run.weighted("shop_pack"+ante,PACKS);
+    if(p==="RETRY")continue;
+    res.push({pack:p,cards:openPack(run,p,ante)});
+  }
+  return res;
+}
+
+const _shared=new Run("AAAAAAAA");
+function scanSeed(seed,antes,slots,withPacks){
+  const run=_shared.reset(seed);
+  const found=[];const st={};
+  for(let a=1;a<=antes;a++){
+    for(let s=1;s<=slots;s++){
+      const it=shopSlot(run,a);
+      if(it.type==="joker")found.push({name:it.name,ante:a,slot:s,
+        edition:it.edition,soul:it.soul,from:"商店第 "+s+" 位"});
+    }
+    if(withPacks){
+      for(const p of antePacks(run,a,st))
+        for(const c of p.cards)
+          if(c.type==="joker")found.push({name:c.name,ante:a,slot:0,
+            edition:c.edition,soul:c.soul,from:packName(p.pack)});
+    }
+  }
+  return found;
+}
+const CHARS="ABCDEFGHIJKLMNOPQRSTUVWXYZ123456789";
+const TOTAL=Math.pow(35,8);
+function seedFromIndex(n){let s="";for(let i=0;i<8;i++){s=CHARS[n%35]+s;n=Math.floor(n/35);}return s;}
+function indexFromSeed(str){
+  const s=str.toUpperCase().padStart(8,"A");let n=0;
+  for(let i=0;i<8;i++){const p=CHARS.indexOf(s[i]);n=n*35+(p<0?0:p);}
+  return n;
+}
+function matchSeed(seed,wants,slots,maxAnte,withPacks){
+  const got=scanSeed(seed,maxAnte,slots,withPacks);
+  const out=[];
+  for(const w of wants){
+    const g=got.find(x=>x.name===w.name&&x.ante<=w.ante&&(!w.ed||x.edition===w.ed));
+    if(!g)return null;
+    out.push(g);
+  }
+  return out;
+}
+
+/* ===== 快速通道：只算条件用得上的东西，用来快速排除 ===== */
+const RAR_OF={};
+for(const r of [1,2,3,4]) for(const j of POOLS[r]) RAR_OF[j]=r;
+
+function makePlan(wants,slots,maxAnte,withPacks){
+  const needRar=new Set(),wantByName={};
+  let needLeg=false;
+  for(const w of wants){
+    const r=RAR_OF[w.name];
+    if(r===4)needLeg=true; else needRar.add(r);
+    (wantByName[w.name]=wantByName[w.name]||[]).push(w);
+  }
+  /* 最晚必须出现的底注，用来提前放弃 */
+  const deadline={};
+  for(const w of wants) deadline[w.ante]=(deadline[w.ante]||[]).concat(w.name);
+  return {needRar,needLeg,wants,deadline,slots,maxAnte,withPacks};
+}
+
+/* 返回 true = 这个种子有戏，值得完整算一遍 */
+function fastScan(seed,plan){
+  const run=_shared.reset(seed);
+  const found=new Set();
+  const st={};
+  const {needRar,needLeg,slots,maxAnte,withPacks}=plan;
+
+  for(let a=1;a<=maxAnte;a++){
+    for(let s=1;s<=slots;s++){
+      const t=run.rand("cdt"+a)*28;
+      if(t<20){                                   /* 小丑位 */
+        if(needRar.size){                         /* 只要传奇的话连稀有度都不用掷 */
+          const r=run.rand("rarity"+a+"sho");
+          const rar=r>0.95?3:(r>0.7?2:1);
+          if(needRar.has(rar))
+            found.add(run.choice("Joker"+rar+"sho"+a,POOLS[rar]));
+        }
+      }   /* 商店的塔罗/星球不会翻灵魂牌 */
+    }
+
+    if(withPacks){
+      for(let i=0,n=(a===1?4:6);i<n;i++){
+        let p;
+        if(a<=2&&!st.firstPack){st.firstPack=true;p="Buffoon Pack";}
+        else p=run.weighted("shop_pack"+a,PACKS);
+        const info=packInfo(p);
+        if(info.kind==="Buffoon Pack"){
+          if(!needRar.size)continue;              /* 不要普通小丑就整包跳过 */
+          const locked=new Set();
+          for(let k=0;k<info.size;k++){
+            const r=run.rand("rarity"+a+"buf");
+            const rar=r>0.95?3:(r>0.7?2:1);
+            const n=run.choice("Joker"+rar+"buf"+a,POOLS[rar],locked);
+            locked.add(n);
+            if(needRar.has(rar))found.add(n);
+          }
+        } else if(info.kind==="Arcana Pack"&&needLeg){
+          let done=false;
+          for(let k=0;k<info.size&&!done;k++)
+            if(run.rand("soul_Tarot"+a)>0.997){
+              found.add(run.choice("Joker4",POOLS[4]));done=true;
+            }
+        } else if(info.kind==="Spectral Pack"&&needLeg){
+          let sd=false,hd=false;
+          for(let k=0;k<info.size;k++){
+            const isSoul=!sd&&run.rand("soul_Spectral"+a)>0.997;
+            const isHole=!hd&&run.rand("soul_Spectral"+a)>0.997;
+            if(isHole)hd=true;
+            else if(isSoul){sd=true;found.add(run.choice("Joker4",POOLS[4]));}
+          }
+        }
+      }
+    }
+
+    /* 提前放弃：到期还没出现的，后面再也不可能了 */
+    const due=plan.deadline[a];
+    if(due) for(const n of due) if(!found.has(n)) return false;
+  }
+  for(const w of plan.wants) if(!found.has(w.name)) return false;
+  return true;
+}
+
+/* 对外：先快速排除，看着有戏再用完整版确认 */
+function matchFast(seed,plan){
+  if(!fastScan(seed,plan))return null;
+  return matchSeed(seed,plan.wants,plan.slots,plan.maxAnte,plan.withPacks);
+}
+</script>
+
+<script>
+"use strict";
+const POOLS = {
+ 1: ["Joker","Greedy Joker","Lusty Joker","Wrathful Joker","Gluttonous Joker","Jolly Joker","Zany Joker","Mad Joker","Crazy Joker","Droll Joker","Sly Joker","Wily Joker","Clever Joker","Devious Joker","Crafty Joker","Half Joker","Credit Card","Banner","Mystic Summit"," 8 Ball","Misprint","Raised Fist","Chaos the Clown","Scary Face","Abstract Joker","Delayed Gratification","Gros Michel","Even Steven","Odd Todd","Scholar","Business Card","Supernova","Ride the Bus","Egg","Runner","Ice Cream","Splash","Blue Joker","Faceless Joker","Green Joker","Superposition","To Do List","Cavendish","Red Card","Square Joker","Riff raff","Photograph","Reserved Parking","Mail In Rebate","Hallucination","Fortune Teller","Juggler","Drunkard","Golden Joker","Popcorn","Walkie Talkie","Smiley Face","Golden Ticket","Swashbuckler","Hanging Chad","Shoot the Moon"],
+ 2: ["Joker Stencil","Four Fingers","Mime","Ceremonial Dagger","Marble Joker","Loyalty Card","Dusk","Fibonacci","Steel Joker","Hack","Pareidolia","Space Joker","Burglar","Blackboard","Sixth Sense","Constellation","Hiker","Card Sharp","Madness","Seance","Vampire","Shortcut","Hologram","Cloud 9","Rocket","Midas Mask","Luchador","Gift Card","Turtle Bean","Erosion","To the Moon","Stone Joker","Lucky Cat","Bull","Diet Cola","Trading Card","Flash Card","Spare Trousers","Ramen","Seltzer","Castle","Mr Bones","Acrobat","Sock and Buskin","Troubadour","Certificate","Smeared Joker","Throwback","Rough Gem","Bloodstone","Arrowhead","Onyx Agate","Glass Joker","Showman","Flower Pot","Merry Andy","Oops All 6s","The Idol","Seeing Double","Matador","Satellite","Cartomancer","Astronomer","Bootstraps"],
+ 3: ["DNA","Vagabond","Baron","Obelisk","Baseball Card","Ancient Joker","Campfire","Blueprint","Wee Joker","Hit the Road","The Duo","The Trio","The Family","The Order","The Tribe","Stuntman","Invisible Joker","Brainstorm","Drivers License","Burnt Joker"],
+ 4: ["Canio","Triboulet","Yorick","Chicot","Perkeo"]
+};
+/* ===== 引擎（32 位手写版，逻辑与对拍通过的 BigInt 版完全一致） ===== */
+function pseudohash(str){
+  let num=1;
+  for(let i=str.length;i>=1;i--)
+    num=((1.1239285023/num)*str.charCodeAt(i-1)*Math.PI+Math.PI*i)%1;
+  return num;
+}
+const round13=x=>parseFloat(x.toFixed(13));
+const _b=new ArrayBuffer(8),_f=new Float64Array(_b),_u=new Uint32Array(_b);
+
+class LuaRandom{
+  constructor(){this.hi=new Uint32Array(4);this.lo=new Uint32Array(4);}
+  gen(i,k,q,s){
+    let zh=this.hi[i],zl=this.lo[i];
+    /* a = ((z<<q) ^ z) >> (k-s) */
+    let ah,al;
+    if(q>=32){ah=zl<<(q-32);al=0;}
+    else{ah=(zh<<q)|(zl>>>(32-q));al=zl<<q;}
+    ah^=zh;al^=zl;
+    const n=k-s;
+    if(n>=32){al=ah>>>(n-32);ah=0;}
+    else if(n>0){al=(al>>>n)|(ah<<(32-n));ah=ah>>>n;}
+    /* b = (z & (M64<<(64-k))) << s */
+    const m=64-k;                       /* 1..17，恒 <32 */
+    let bh=zh,bl=zl&((0xFFFFFFFF<<m)>>>0);
+    if(s>=32){bh=bl<<(s-32);bl=0;}
+    else{bh=(bh<<s)|(bl>>>(32-s));bl=bl<<s;}
+    const rh=(ah^bh)>>>0,rl=(al^bl)>>>0;
+    this.hi[i]=rh;this.lo[i]=rl;
+    return [rh,rl];
+  }
+  step(){
+    let h=0,l=0,r;
+    r=this.gen(0,63,31,18);h^=r[0];l^=r[1];
+    r=this.gen(1,58,19,28);h^=r[0];l^=r[1];
+    r=this.gen(2,55,24, 7);h^=r[0];l^=r[1];
+    r=this.gen(3,47,21, 8);h^=r[0];l^=r[1];
+    this._h=h>>>0;this._l=l>>>0;
+  }
+  seed(d){
+    let r=0x11090601;
+    for(let i=0;i<4;i++){
+      const m=(1<<(r&255))>>>0;r>>>=8;
+      d=d*3.14159265358979323846+2.7182818284590452354;
+      _f[0]=d;let lo=_u[0];const hi=_u[1];
+      if(lo<m)lo=(lo+m)>>>0;
+      this.hi[i]=hi;this.lo[i]=lo;
+    }
+    for(let i=0;i<10;i++)this.step();
+  }
+  double(){
+    this.step();
+    _u[1]=((this._h&0x000FFFFF)|0x3FF00000)>>>0;
+    _u[0]=this._l;
+    return _f[0]-1.0;
+  }
+  int(n){return Math.floor(this.double()*n)+1;}
+}
+class Run{
+  constructor(s){this.rng=new LuaRandom();this.state=Object.create(null);this.reset(s);}
+  reset(s){
+    this.seedStr=s;this.hashed=pseudohash(s);
+    for(const k in this.state)delete this.state[k];
+    return this;
+  }
+  pseudoseed(key){
+    let v=this.state[key];
+    if(v===undefined)v=pseudohash(key+this.seedStr);
+    v=Math.abs(round13((2.134453429141+v*1.72431234)%1));
+    this.state[key]=v;
+    return (v+this.hashed)/2;
+  }
+  rand(key){this.rng.seed(this.pseudoseed(key));return this.rng.double();}
+  pick(key,list){this.rng.seed(this.pseudoseed(key));return list[this.rng.int(list.length)-1];}
+}
+
+/* ========== 商店 ========== */
+const EDITIONS=[[0.997,"负片"],[0.994,"多彩"],[0.98,"全息"],[0.96,"闪箔"]];
+
+function jokerEdition(run,src,ante){
+  const p=run.rand("edi"+src+ante);
+  for(const [t,name] of EDITIONS) if(p>t) return name;
+  return null;
+}
+
+/* 商店第 n 个位置卖什么 */
+function shopSlot(run,ante){
+  const t=run.rand("cdt"+ante)*28;
+  /* 商店的消耗牌不 soulable（create_card 第六个参数没传），永远不会翻灵魂牌 */
+  if(t>=20) return {type:t<24?"塔罗牌":"星球牌"};
+  const r=run.rand("rarity"+ante+"sho");
+  const rarity=r>0.95?3:(r>0.7?2:1);
+  const name=run.pick("Joker"+rarity+"sho"+ante,POOLS[rarity]);
+  return {type:"joker",name,rarity,edition:jokerEdition(run,"sho",ante)};
+}
+
+
+/* ===== 消耗牌池 ===== */
+const TAROTS=["The Fool","The Magician","The High Priestess","The Empress","The Emperor","The Hierophant","The Lovers","The Chariot","Justice","The Hermit","The Wheel of Fortune","Strength","The Hanged Man","Death","Temperance","The Devil","The Tower","The Star","The Moon","The Sun","Judgement","The World"];
+const PLANETS=["Mercury","Venus","Earth","Mars","Jupiter","Saturn","Uranus","Neptune","Pluto","Planet X","Ceres","Eris"];
+const SPECTRALS=["Familiar","Grim","Incantation","Talisman","Aura","Wraith","Sigil","Ouija","Ectoplasm","Immolate","Ankh","Deja Vu","Hex","Trance","Medium","Cryptid","RETRY","RETRY"];
+
+/* 卡包权重（第一项是"这个位子没有包"） */
+const PACKS=[["RETRY",22.42],["Arcana Pack",4],["Jumbo Arcana Pack",2],["Mega Arcana Pack",0.5],
+["Celestial Pack",4],["Jumbo Celestial Pack",2],["Mega Celestial Pack",0.5],
+["Standard Pack",4],["Jumbo Standard Pack",2],["Mega Standard Pack",0.5],
+["Buffoon Pack",1.2],["Jumbo Buffoon Pack",0.6],["Mega Buffoon Pack",0.15],
+["Spectral Pack",0.6],["Jumbo Spectral Pack",0.3],["Mega Spectral Pack",0.07]];
+
+/* 加权抽签：拿第一项的权重当总量，往后累加 */
+Run.prototype.weighted=function(key,items){
+  this.rng.seed(this.pseudoseed(key));
+  const poll=this.rng.double()*items[0][1];
+  let idx=1,w=0;
+  while(w<poll){w+=items[idx][1];idx++;}
+  return items[idx-1][0];
+};
+
+/* 带锁的抽取：抽到锁上的就 _resample2、_resample3 重抽 */
+Run.prototype.choice=function(key,items,locked){
+  this.rng.seed(this.pseudoseed(key));
+  let it=items[this.rng.int(items.length)-1];
+  if(it!=="RETRY"&&!(locked&&locked.has(it)))return it;
+  let n=2;
+  while(n<=1000){
+    this.rng.seed(this.pseudoseed(key+"_resample"+n));
+    it=items[this.rng.int(items.length)-1];
+    n++;
+    if(it!=="RETRY"&&!(locked&&locked.has(it)))return it;
+  }
+  return it;
+};
+
+/* 包的种类 → 里面几张、能选几张 */
+function packInfo(p){
+  if(p.startsWith("Mega "))  return {kind:p.slice(5), size:p.includes("Buffoon")?4:5, pick:2};
+  if(p.startsWith("Jumbo ")) return {kind:p.slice(6), size:p.includes("Buffoon")?4:5, pick:1};
+  return {kind:p, size:p.includes("Buffoon")?2:3, pick:1};
+}
+
+const PACK_CN={"Arcana Pack":"奇术包","Celestial Pack":"天体包","Standard Pack":"标准包",
+               "Buffoon Pack":"小丑包","Spectral Pack":"幻灵包"};
+function packName(p){
+  const i=packInfo(p);
+  return (p.startsWith("Mega ")?"超大":p.startsWith("Jumbo ")?"大":"")+(PACK_CN[i.kind]||i.kind);
+}
+
+/* 包里装了什么 */
+function openPack(run,p,ante){
+  const {kind,size}=packInfo(p);
+  const locked=new Set(),out=[];
+  let soulDone=false,holeDone=false;
+  for(let i=0;i<size;i++){
+    let c;
+    if(kind==="Buffoon Pack"){
+      const r=run.rand("rarity"+ante+"buf");
+      const rarity=r>0.95?3:(r>0.7?2:1);
+      const name=run.choice("Joker"+rarity+"buf"+ante,POOLS[rarity],locked);
+      c={type:"joker",name,rarity,edition:jokerEdition(run,"buf",ante)};
+    } else if(kind==="Arcana Pack"){
+      /* 同一个包里灵魂牌只出一张，出过之后连掷都不掷了 */
+      if(!soulDone&&run.rand("soul_Tarot"+ante)>0.997){c={type:"soul"};soulDone=true;}
+      else c={type:"tarot",name:run.choice("Tarot"+"ar1"+ante,TAROTS,locked)};
+    } else if(kind==="Spectral Pack"){
+      /* 源码里这是两个独立的 if，两次都要掷，后者盖过前者 */
+      const isSoul=!soulDone&&run.rand("soul_Spectral"+ante)>0.997;
+      const isHole=!holeDone&&run.rand("soul_Spectral"+ante)>0.997;
+      if(isHole){c={type:"spectral",name:"Black Hole"};holeDone=true;}
+      else if(isSoul){c={type:"soul"};soulDone=true;}
+      else c={type:"spectral",name:run.choice("Spectral"+"spe"+ante,SPECTRALS,locked)};
+    } else if(kind==="Celestial Pack"){
+      c={type:"planet",name:run.choice("Planet"+"pl1"+ante,PLANETS,locked)};
+    } else { c={type:"card",name:"扑克牌"}; }   /* 标准包暂不细分 */
+    if(c.type==="soul"){
+      /* 灵魂牌造出的传奇走自己的通道：source 是 "sou" */
+      c={type:"joker",name:run.choice("Joker4",POOLS[4]),rarity:4,
+         edition:jokerEdition(run,"sou",ante),soul:true};
+    }
+    if(c.name)locked.add(c.name);
+    out.push(c);
+  }
+  return out;
+}
+
+/* 打完 Boss 底注就 +1，那次商店算下一底注头上：
+   所以底注 1 只有小盲、大盲两次商店（4 个包），之后每底注 3 次（6 个包） */
+function antePacks(run,ante,state){
+  const res=[];
+  const n=(ante===1)?4:6;
+  for(let i=0;i<n;i++){
+    let p;
+    if(ante<=2&&!state.firstPack){ state.firstPack=true; p="Buffoon Pack"; }
+    else p=run.weighted("shop_pack"+ante,PACKS);
+    if(p==="RETRY")continue;
+    res.push({pack:p,cards:openPack(run,p,ante)});
+  }
+  return res;
+}
+
+const _shared=new Run("AAAAAAAA");
+function scanSeed(seed,antes,slots,withPacks){
+  const run=_shared.reset(seed);
+  const found=[];const st={};
+  for(let a=1;a<=antes;a++){
+    for(let s=1;s<=slots;s++){
+      const it=shopSlot(run,a);
+      if(it.type==="joker")found.push({name:it.name,ante:a,slot:s,
+        edition:it.edition,soul:it.soul,from:"商店第 "+s+" 位"});
+    }
+    if(withPacks){
+      for(const p of antePacks(run,a,st))
+        for(const c of p.cards)
+          if(c.type==="joker")found.push({name:c.name,ante:a,slot:0,
+            edition:c.edition,soul:c.soul,from:packName(p.pack)});
+    }
+  }
+  return found;
+}
+const CHARS="ABCDEFGHIJKLMNOPQRSTUVWXYZ123456789";
+const TOTAL=Math.pow(35,8);
+function seedFromIndex(n){let s="";for(let i=0;i<8;i++){s=CHARS[n%35]+s;n=Math.floor(n/35);}return s;}
+function indexFromSeed(str){
+  const s=str.toUpperCase().padStart(8,"A");let n=0;
+  for(let i=0;i<8;i++){const p=CHARS.indexOf(s[i]);n=n*35+(p<0?0:p);}
+  return n;
+}
+function matchSeed(seed,wants,slots,maxAnte,withPacks){
+  const got=scanSeed(seed,maxAnte,slots,withPacks);
+  const out=[];
+  for(const w of wants){
+    const g=got.find(x=>x.name===w.name&&x.ante<=w.ante&&(!w.ed||x.edition===w.ed));
+    if(!g)return null;
+    out.push(g);
+  }
+  return out;
+}
+
+/* ===== 快速通道：只算条件用得上的东西，用来快速排除 ===== */
+const RAR_OF={};
+for(const r of [1,2,3,4]) for(const j of POOLS[r]) RAR_OF[j]=r;
+
+function makePlan(wants,slots,maxAnte,withPacks){
+  const needRar=new Set(),wantByName={};
+  let needLeg=false;
+  for(const w of wants){
+    const r=RAR_OF[w.name];
+    if(r===4)needLeg=true; else needRar.add(r);
+    (wantByName[w.name]=wantByName[w.name]||[]).push(w);
+  }
+  /* 最晚必须出现的底注，用来提前放弃 */
+  const deadline={};
+  for(const w of wants) deadline[w.ante]=(deadline[w.ante]||[]).concat(w.name);
+  return {needRar,needLeg,wants,deadline,slots,maxAnte,withPacks};
+}
+
+/* 返回 true = 这个种子有戏，值得完整算一遍 */
+function fastScan(seed,plan){
+  const run=_shared.reset(seed);
+  const found=new Set();
+  const st={};
+  const {needRar,needLeg,slots,maxAnte,withPacks}=plan;
+
+  for(let a=1;a<=maxAnte;a++){
+    for(let s=1;s<=slots;s++){
+      const t=run.rand("cdt"+a)*28;
+      if(t<20){                                   /* 小丑位 */
+        if(needRar.size){                         /* 只要传奇的话连稀有度都不用掷 */
+          const r=run.rand("rarity"+a+"sho");
+          const rar=r>0.95?3:(r>0.7?2:1);
+          if(needRar.has(rar))
+            found.add(run.choice("Joker"+rar+"sho"+a,POOLS[rar]));
+        }
+      }   /* 商店的塔罗/星球不会翻灵魂牌 */
+    }
+
+    if(withPacks){
+      for(let i=0,n=(a===1?4:6);i<n;i++){
+        let p;
+        if(a<=2&&!st.firstPack){st.firstPack=true;p="Buffoon Pack";}
+        else p=run.weighted("shop_pack"+a,PACKS);
+        const info=packInfo(p);
+        if(info.kind==="Buffoon Pack"){
+          if(!needRar.size)continue;              /* 不要普通小丑就整包跳过 */
+          const locked=new Set();
+          for(let k=0;k<info.size;k++){
+            const r=run.rand("rarity"+a+"buf");
+            const rar=r>0.95?3:(r>0.7?2:1);
+            const n=run.choice("Joker"+rar+"buf"+a,POOLS[rar],locked);
+            locked.add(n);
+            if(needRar.has(rar))found.add(n);
+          }
+        } else if(info.kind==="Arcana Pack"&&needLeg){
+          let done=false;
+          for(let k=0;k<info.size&&!done;k++)
+            if(run.rand("soul_Tarot"+a)>0.997){
+              found.add(run.choice("Joker4",POOLS[4]));done=true;
+            }
+        } else if(info.kind==="Spectral Pack"&&needLeg){
+          let sd=false,hd=false;
+          for(let k=0;k<info.size;k++){
+            const isSoul=!sd&&run.rand("soul_Spectral"+a)>0.997;
+            const isHole=!hd&&run.rand("soul_Spectral"+a)>0.997;
+            if(isHole)hd=true;
+            else if(isSoul){sd=true;found.add(run.choice("Joker4",POOLS[4]));}
+          }
+        }
+      }
+    }
+
+    /* 提前放弃：到期还没出现的，后面再也不可能了 */
+    const due=plan.deadline[a];
+    if(due) for(const n of due) if(!found.has(n)) return false;
+  }
+  for(const w of plan.wants) if(!found.has(w.name)) return false;
+  return true;
+}
+
+/* 对外：先快速排除，看着有戏再用完整版确认 */
+function matchFast(seed,plan){
+  if(!fastScan(seed,plan))return null;
+  return matchSeed(seed,plan.wants,plan.slots,plan.maxAnte,plan.withPacks);
+}
+
+const CN={"Joker": "小丑", "Greedy Joker": "贪婪小丑", "Lusty Joker": "好色小丑", "Wrathful Joker": "愤怒小丑", "Gluttonous Joker": "暴食小丑", "Jolly Joker": "欢乐小丑", "Zany Joker": "滑稽小丑", "Mad Joker": "疯狂小丑", "Crazy Joker": "癫狂小丑", "Droll Joker": "诙谐小丑", "Sly Joker": "狡猾小丑", "Wily Joker": "诡诈小丑", "Clever Joker": "机灵小丑", "Devious Joker": "迂回小丑", "Crafty Joker": "巧妙小丑", "Half Joker": "半个小丑", "Credit Card": "信用卡", "Banner": "旗帜", "Mystic Summit": "神秘峰会", " 8 Ball": "八号球", "Misprint": "错版", "Raised Fist": "举起的拳头", "Chaos the Clown": "混沌小丑", "Scary Face": "恐怖面容", "Abstract Joker": "抽象小丑", "Delayed Gratification": "延迟满足", "Gros Michel": "大麦克香蕉", "Even Steven": "偶数史蒂文", "Odd Todd": "奇数托德", "Scholar": "学者", "Business Card": "名片", "Supernova": "超新星", "Ride the Bus": "坐巴士", "Egg": "蛋", "Runner": "跑者", "Ice Cream": "冰淇淋", "Splash": "水花", "Blue Joker": "蓝色小丑", "Faceless Joker": "无面小丑", "Green Joker": "绿色小丑", "Superposition": "叠加态", "To Do List": "待办清单", "Cavendish": "卡文迪什香蕉", "Red Card": "红牌", "Square Joker": "方块小丑", "Riff raff": "乌合之众", "Photograph": "照片", "Reserved Parking": "预留车位", "Mail In Rebate": "邮寄退款", "Hallucination": "幻觉", "Fortune Teller": "占卜师", "Juggler": "杂耍艺人", "Drunkard": "酒鬼", "Golden Joker": "黄金小丑", "Popcorn": "爆米花", "Walkie Talkie": "对讲机", "Smiley Face": "笑脸", "Golden Ticket": "金票", "Swashbuckler": "侠客", "Hanging Chad": "悬孔", "Shoot the Moon": "射月", "Joker Stencil": "小丑模板", "Four Fingers": "四根手指", "Mime": "哑剧演员", "Ceremonial Dagger": "仪式匕首", "Marble Joker": "大理石小丑", "Loyalty Card": "会员卡", "Dusk": "黄昏", "Fibonacci": "斐波那契", "Steel Joker": "钢铁小丑", "Hack": "老套", "Pareidolia": "空想性错视", "Space Joker": "太空小丑", "Burglar": "窃贼", "Blackboard": "黑板", "Sixth Sense": "第六感", "Constellation": "星座", "Hiker": "徒步者", "Card Sharp": "老千", "Madness": "疯癫", "Seance": "通灵", "Vampire": "吸血鬼", "Shortcut": "捷径", "Hologram": "全息图", "Cloud 9": "九霄云", "Rocket": "火箭", "Midas Mask": "迈达斯面具", "Luchador": "摔角手", "Gift Card": "礼品卡", "Turtle Bean": "龟豆", "Erosion": "侵蚀", "To the Moon": "飞向月球", "Stone Joker": "石头小丑", "Lucky Cat": "幸运猫", "Bull": "公牛", "Diet Cola": "无糖可乐", "Trading Card": "交易卡", "Flash Card": "抽认卡", "Spare Trousers": "备用长裤", "Ramen": "拉面", "Seltzer": "苏打水", "Castle": "城堡", "Mr Bones": "骨头先生", "Acrobat": "杂技演员", "Sock and Buskin": "袜子与靴子", "Troubadour": "吟游诗人", "Certificate": "证书", "Smeared Joker": "涂抹小丑", "Throwback": "复古", "Rough Gem": "原石", "Bloodstone": "血石", "Arrowhead": "箭头", "Onyx Agate": "缟玛瑙", "Glass Joker": "玻璃小丑", "Showman": "马戏团长", "Flower Pot": "花盆", "Merry Andy": "快乐安迪", "Oops All 6s": "哎呀!全是6", "The Idol": "偶像", "Seeing Double": "重影", "Matador": "斗牛士", "Satellite": "卫星", "Cartomancer": "纸牌占卜师", "Astronomer": "天文学家", "Bootstraps": "引导带", "DNA": "DNA", "Vagabond": "流浪汉", "Baron": "男爵", "Obelisk": "方尖碑", "Baseball Card": "棒球卡", "Ancient Joker": "古代小丑", "Campfire": "营火", "Blueprint": "蓝图", "Wee Joker": "小小丑", "Hit the Road": "上路", "The Duo": "二重奏", "The Trio": "三重奏", "The Family": "家族", "The Order": "顺子", "The Tribe": "部落", "Stuntman": "特技演员", "Invisible Joker": "隐形小丑", "Brainstorm": "头脑风暴", "Drivers License": "驾照", "Burnt Joker": "烧焦小丑", "Canio": "卡尼奥", "Triboulet": "特里布莱", "Yorick": "约里克", "Chicot": "奇科", "Perkeo": "帕奇欧"};
+
+const EDS=["","负片","多彩","全息","闪箔"];
+const ALL=[...POOLS[1],...POOLS[2],...POOLS[3],...POOLS[4]]
+  .map(n=>({en:n,cn:CN[n]||n})).sort((a,b)=>a.cn.localeCompare(b.cn,"zh"));
+const RAR={1:"普通",2:"罕见",3:"稀有",4:"传奇"};
+const $=id=>document.getElementById(id);
+const jname=en=>(CN[en]||en);
+
+function addWant(en,ante,ed){
+  const d=document.createElement("div");
+  d.className="want";
+  d.innerHTML='<select class="j">'+ALL.map(o=>
+      '<option value="'+o.en+'"'+(o.en===en?" selected":"")+'>'+o.cn+'</option>').join("")+'</select>'+
+    '<select class="e">'+EDS.map(e=>
+      '<option value="'+e+'"'+(e===ed?" selected":"")+'>'+(e||"不限版本")+'</option>').join("")+'</select>'+
+    '<input class="ant" type="number" value="'+(ante||3)+'">'+
+    '<button class="del">×</button>';
+  d.querySelector(".del").onclick=()=>d.remove();
+  $("wants").appendChild(d);
+}
+addWant("Perkeo",3,"");
+addWant("Seance",4,"");
+addWant("Shortcut",4,"");
+$("add").onclick=()=>addWant("Joker",4,"");
+
+/* ---- 多线程 ---- */
+const WORKER_SRC = document.getElementById('engine-src').textContent + `
+onmessage = function(e){
+  var d=e.data, hits=[];
+  var plan=makePlan(d.wants,d.slots,d.maxAnte,d.withPacks);
+  for(var i=0;i<d.count;i++){
+    var seed=seedFromIndex(d.start+i);
+    var m=matchFast(seed,plan);
+    if(m) hits.push({seed:seed,where:m});
+  }
+  postMessage({tried:d.count,hits:hits});
+};`;
+
+let pool=[],running=false;
+function makeWorkers(){
+  const n=Math.min(navigator.hardwareConcurrency||4,8);
+  const url=URL.createObjectURL(new Blob([WORKER_SRC],{type:"text/javascript"}));
+  const ws=[];
+  for(let i=0;i<n;i++){ try{ ws.push(new Worker(url)); }catch(err){ break; } }
+  return ws;
+}
+
+$("stop").onclick=()=>{running=false;};
+
+$("go").onclick=()=>{
+  if(running)return;
+  const wants=[...document.querySelectorAll("#wants .want")].map(d=>({
+    name:d.querySelector(".j").value,
+    ed:d.querySelector(".e").value,
+    ante:parseInt(d.querySelector(".ant").value,10)||8
+  }));
+  if(!wants.length)return;
+  const slots=parseInt($("slots").value,10)||6;
+  const target=Math.max(1,parseInt($("found").value,10)||5);
+  const maxAnte=Math.max(...wants.map(w=>w.ante));
+  const withPacks=$("packs").checked;
+  const typed=$("from").value.trim();
+  let cursor = typed ? indexFromSeed(typed) : Math.floor(Math.random()*TOTAL);
+
+  running=true;$("stop").style.display="block";$("hits").innerHTML="";
+  let tried=0,hits=0;const t0=performance.now();
+  const CHUNK=8000;
+
+  const show=()=>{
+    const sec=(performance.now()-t0)/1000;
+    $("stat").innerHTML="已试 <b>"+tried.toLocaleString()+"</b> 个 ・ "+
+      Math.round(tried/sec).toLocaleString()+" 个/秒 ・ 命中 <b>"+hits+"</b><br>"+
+      "数到这里了：<b>"+seedFromIndex(cursor)+"</b>　（下次填它就能接着搜）";
+  };
+  const report=(seed,where)=>{
+    hits++;
+    const txt=where.map(g=>jname(g.name)+" <span class=en>"+g.name+"</span> — 底注 "+g.ante+
+      " ・ "+g.from+(g.edition?' <span class="ed">'+g.edition+"</span>":"")+
+      (g.soul?" ✦灵魂牌":"")).join("<br>");
+    $("hits").insertAdjacentHTML("afterbegin",
+      '<div class="hit"><div class="seed">'+seed+'</div><div class="where">'+txt+"</div></div>");
+  };
+  const finish=()=>{
+    running=false;$("stop").style.display="none";
+    pool.forEach(w=>w.terminate());pool=[];
+    if(!hits)$("hits").innerHTML="这一段里一个都没有。放宽底注，或者接着往下数。";
+  };
+
+  pool=makeWorkers();
+
+  if(pool.length){                       /* 多线程 */
+    $("stat").textContent="用了 "+pool.length+" 个核心，开搜…";
+    pool.forEach(w=>{
+      const feed=()=>{
+        if(!running||hits>=target){ if(pool.every(x=>x.idle))finish(); return; }
+        w.idle=false;
+        const start=cursor;cursor+=CHUNK;
+        w.postMessage({start,count:CHUNK,wants,slots,maxAnte,withPacks});
+      };
+      w.onmessage=ev=>{
+        tried+=ev.data.tried;
+        ev.data.hits.forEach(h=>{ if(hits<target)report(h.seed,h.where); });
+        show();
+        w.idle=true;
+        if(running&&hits<target)feed(); else finish();
+      };
+      feed();
+    });
+  } else {                               /* 退回单线程 */
+    (async()=>{
+      $("stat").textContent="这个浏览器不让开多线程，用单核跑…";
+      while(running&&hits<target){
+        const plan=makePlan(wants,slots,maxAnte,withPacks);
+        for(let n=0;n<3000&&running&&hits<target;n++){
+          const seed=seedFromIndex(cursor++);tried++;
+          const m=matchFast(seed,plan);
+          if(m)report(seed,m);
+        }
+        show();
+        await new Promise(r=>setTimeout(r));
+      }
+      finish();
+    })();
+  }
+};
+
+$("peek").onclick=()=>{
+  const seed=$("one").value.trim().toUpperCase();
+  if(!seed)return;
+  const run=new Run(seed);const _st={};
+  let html="";
+  for(let a=1;a<=4;a++){
+    const items=[];
+    for(let s=1;s<=8;s++){
+      const it=shopSlot(run,a);
+      items.push(it.type==="joker"
+        ? jname(it.name)+'<span class="o">('+RAR[it.rarity]+(it.edition?"・"+it.edition:"")+
+          (it.soul?"・灵魂":"")+")</span>"
+        : '<span class="o">'+it.type+"</span>");
+    }
+    html+='<div><span class="a">底注 '+a+"</span>　"+items.join("　")+"</div>";
+    for(const p of antePacks(run,a,_st)){
+      const cs=p.cards.map(c=>c.type==="joker"
+        ? jname(c.name)+(c.soul?"✦":"")+(c.edition?"・"+c.edition:"")
+        : (c.name||"?")).join("、");
+      html+='<div style="padding-left:14px"><span class="o">'+packName(p.pack)+
+            "（"+packInfo(p.pack).size+" 选 "+packInfo(p.pack).pick+"）：</span>"+cs+"</div>";
+    }
+  }
+  $("pv").innerHTML=html;
+};
+</script>
+</body>
+</html>
