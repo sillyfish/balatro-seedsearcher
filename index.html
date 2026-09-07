@@ -7,7 +7,10 @@
 <style>
   :root{--felt:#28524f;--felt-dark:#1c3a38;--chip:#f4eee4;
         --red:#fe5f55;--blue:#009dff;--gold:#ffa200;--dim:#8fa9a6;}
-  *{box-sizing:border-box}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  button,.face,.pcard{-webkit-touch-callout:none;user-select:none;-webkit-user-select:none}
+  button:focus,button:focus-visible,.face:focus{outline:none}
+  .pcard:active,.face:active{filter:brightness(1.25)}
   body{margin:0;padding:20px 16px 60px;background:var(--felt-dark);color:var(--chip);
        font-family:ui-monospace,"PingFang SC","Microsoft YaHei",Menlo,monospace;font-size:15px;line-height:1.55}
   .wrap{max-width:640px;margin:0 auto}
@@ -25,7 +28,26 @@
          background:var(--red);color:#fff;font:inherit;font-size:16px;font-weight:700}
   button.ghost{background:var(--felt-dark);color:var(--dim);font-size:14px;padding:9px}
   button:active{transform:translateY(2px)}
-  .want{display:grid;grid-template-columns:1fr 82px 62px 34px;gap:6px;align-items:center;margin-top:8px}
+  .want{display:grid;grid-template-columns:1fr 82px 56px 32px;gap:6px;align-items:center;margin-top:8px}
+  .face{display:flex;align-items:center;gap:7px;padding:5px 8px;border-radius:7px;
+        border:2px solid var(--felt-dark);background:var(--felt-dark);cursor:pointer;
+        min-height:44px;overflow:hidden}
+  .fname{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .chip{display:inline-block;flex:none;overflow:hidden;position:relative;vertical-align:middle}
+  .chip img{display:block;image-rendering:pixelated;max-width:none}
+  #picker{display:none;position:fixed;inset:0;background:rgba(12,26,25,.94);z-index:99;
+          flex-direction:column;padding:14px}
+  #picker .bar{display:flex;gap:8px;align-items:center;margin-bottom:10px}
+  #picker .bar input{flex:1;margin:0}
+  #picker .bar button{width:auto;margin:0;padding:9px 15px;font-size:14px}
+  #pgrid{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
+  .pgroup{color:var(--gold);font-size:12px;font-weight:700;margin:12px 0 6px;
+          position:sticky;top:0;background:rgba(12,26,25,.96);padding:3px 0}
+  .prow{display:grid;grid-template-columns:repeat(auto-fill,minmax(72px,1fr));gap:7px}
+  .pcard{width:auto;margin:0;padding:5px 2px 6px;background:var(--felt);border-radius:8px;
+         display:flex;flex-direction:column;align-items:center;gap:3px;font-weight:400}
+  .pname{font-size:10.5px;color:var(--dim);line-height:1.25;text-align:center;
+         word-break:break-all}
   .want select,.want input{padding:8px 7px;font-size:14px}
   .want .del{width:34px;margin:0;padding:8px 0;background:transparent;color:var(--dim);font-size:18px}
   .hit{padding:10px 12px;margin-top:8px;border-radius:8px;background:var(--felt-dark)}
@@ -74,6 +96,14 @@
   <button class="ghost" id="peek" style="margin-top:10px">看看这局商店卖啥</button>
   <div class="preview" id="pv" style="margin-top:10px"></div>
 </fieldset>
+
+<div id="picker">
+  <div class="bar">
+    <input id="psearch" placeholder="搜名字…" autocomplete="off">
+    <button id="pclose">关闭</button>
+  </div>
+  <div id="pgrid"></div>
+</div>
 </div>
 
 <script type="text/plain" id="engine-src">
@@ -740,7 +770,62 @@ function matchFast(seed,plan){
 
 const CN={"Joker": "小丑", "Greedy Joker": "贪婪小丑", "Lusty Joker": "色欲小丑", "Wrathful Joker": "愤怒小丑", "Gluttonous Joker": "暴食小丑", "Jolly Joker": "欢乐小丑", "Zany Joker": "滑稽小丑", "Mad Joker": "疯狂小丑", "Crazy Joker": "狂野小丑", "Droll Joker": "滑稽小丑", "Sly Joker": "奸诈小丑", "Wily Joker": "狡猾小丑", "Clever Joker": "聪敏小丑", "Devious Joker": "阴险小丑", "Crafty Joker": "精明小丑", "Half Joker": "半张小丑", "Credit Card": "信用卡", "Banner": "旗帜", "Mystic Summit": "神秘之峰", " 8 Ball": "八号球", "Misprint": "印错", "Raised Fist": "致胜之拳", "Chaos the Clown": "混沌小丑", "Scary Face": "恐怖面孔", "Abstract Joker": "抽象小丑", "Delayed Gratification": "延迟满足", "Gros Michel": "大麦克香蕉", "Even Steven": "偶数史蒂文", "Odd Todd": "奇数托德", "Scholar": "学者", "Business Card": "名片", "Supernova": "超新星", "Ride the Bus": "搭乘巴士", "Egg": "蛋", "Runner": "跑步选手", "Ice Cream": "冰淇淋", "Splash": "飞溅", "Blue Joker": "蓝色小丑", "Faceless Joker": "无面小丑", "Green Joker": "绿色小丑", "Superposition": "叠加态", "To Do List": "待办清单", "Cavendish": "卡文迪什", "Red Card": "红牌", "Square Joker": "方块小丑", "Riff raff": "乌合之众", "Photograph": "照片", "Reserved Parking": "私人车位", "Mail In Rebate": "邮件回扣", "Hallucination": "幻觉", "Fortune Teller": "占卜师", "Juggler": "杂耍师", "Drunkard": "醉汉", "Golden Joker": "黄金小丑", "Popcorn": "爆米花", "Walkie Talkie": "对讲机", "Smiley Face": "笑脸", "Golden Ticket": "金票", "Swashbuckler": "侠客", "Hanging Chad": "未断选票", "Shoot the Moon": "射月", "Joker Stencil": "小丑模板", "Four Fingers": "四指", "Mime": "哑剧演员", "Ceremonial Dagger": "仪式匕首", "Marble Joker": "大理石小丑", "Loyalty Card": "会员卡", "Dusk": "黄昏", "Fibonacci": "斐波那契", "Steel Joker": "钢铁小丑", "Hack": "烂脱口秀演员", "Pareidolia": "幻视", "Space Joker": "太空小丑", "Burglar": "窃贼", "Blackboard": "黑板", "Sixth Sense": "第六感", "Constellation": "星座", "Hiker": "徒步者", "Card Sharp": "老千小丑", "Madness": "疯狂", "Seance": "通灵", "Vampire": "吸血鬼", "Shortcut": "捷径", "Hologram": "全息影像", "Cloud 9": "九霄云", "Rocket": "火箭", "Midas Mask": "迈达斯面具", "Luchador": "摔角手", "Gift Card": "礼品卡", "Turtle Bean": "龟豆", "Erosion": "侵蚀", "To the Moon": "飞向月球", "Stone Joker": "石头小丑", "Lucky Cat": "幸运猫", "Bull": "公牛", "Diet Cola": "无糖可乐", "Trading Card": "交易卡", "Flash Card": "抽认卡", "Spare Trousers": "备用长裤", "Ramen": "拉面", "Seltzer": "苏打水", "Castle": "城堡", "Mr Bones": "骷髅先生", "Acrobat": "杂技演员", "Sock and Buskin": "悲与喜", "Troubadour": "吟游诗人", "Certificate": "证书", "Smeared Joker": "涂抹小丑", "Throwback": "复古", "Rough Gem": "原石", "Bloodstone": "血石", "Arrowhead": "箭头", "Onyx Agate": "缟玛瑙", "Glass Joker": "玻璃小丑", "Showman": "马戏团长", "Flower Pot": "花盆", "Merry Andy": "快乐安迪", "Oops All 6s": "六六大顺", "The Idol": "偶像", "Seeing Double": "重影", "Matador": "斗牛士", "Satellite": "卫星", "Cartomancer": "纸牌占卜师", "Astronomer": "天文学家", "Bootstraps": "提靴带", "DNA": "DNA", "Vagabond": "流浪汉", "Baron": "男爵", "Obelisk": "方尖碑", "Baseball Card": "棒球卡", "Ancient Joker": "古代小丑", "Campfire": "营火", "Blueprint": "蓝图", "Wee Joker": "小小丑", "Hit the Road": "上路吧杰克", "The Duo": "二重奏", "The Trio": "三重奏", "The Family": "一家人", "The Order": "秩序", "The Tribe": "部落", "Stuntman": "特技演员", "Invisible Joker": "隐形小丑", "Brainstorm": "头脑风暴", "Drivers License": "驾驶执照", "Burnt Joker": "烧焦小丑", "Canio": "卡尼奥", "Triboulet": "特里布莱", "Yorick": "约里克", "Chicot": "希科", "Perkeo": "帕奇欧"};
 
+const JPOS={"Joker": [0, 0], "Greedy Joker": [6, 1], "Lusty Joker": [7, 1], "Wrathful Joker": [8, 1], "Gluttonous Joker": [9, 1], "Jolly Joker": [2, 0], "Zany Joker": [3, 0], "Mad Joker": [4, 0], "Crazy Joker": [5, 0], "Droll Joker": [6, 0], "Sly Joker": [0, 14], "Wily Joker": [1, 14], "Clever Joker": [2, 14], "Devious Joker": [3, 14], "Crafty Joker": [4, 14], "Half Joker": [7, 0], "Credit Card": [5, 1], "Banner": [1, 2], "Mystic Summit": [2, 2], " 8 Ball": [0, 5], "Misprint": [6, 2], "Raised Fist": [8, 2], "Chaos the Clown": [1, 0], "Scary Face": [2, 3], "Abstract Joker": [3, 3], "Delayed Gratification": [4, 3], "Gros Michel": [7, 6], "Even Steven": [8, 3], "Odd Todd": [9, 3], "Scholar": [3, 6], "Business Card": [1, 4], "Supernova": [2, 4], "Ride the Bus": [1, 6], "Egg": [0, 10], "Runner": [3, 10], "Ice Cream": [4, 10], "Splash": [6, 10], "Blue Joker": [7, 10], "Faceless Joker": [1, 11], "Green Joker": [2, 11], "Superposition": [3, 11], "To Do List": [4, 11], "Cavendish": [5, 11], "Red Card": [7, 11], "Square Joker": [9, 11], "Riff raff": [1, 12], "Photograph": [2, 13], "Reserved Parking": [6, 13], "Mail In Rebate": [7, 13], "Hallucination": [9, 13], "Fortune Teller": [7, 5], "Juggler": [0, 1], "Drunkard": [1, 1], "Golden Joker": [9, 2], "Popcorn": [1, 15], "Walkie Talkie": [8, 15], "Smiley Face": [6, 15], "Golden Ticket": [5, 3], "Swashbuckler": [9, 5], "Hanging Chad": [9, 6], "Shoot the Moon": [2, 6], "Joker Stencil": [2, 5], "Four Fingers": [6, 6], "Mime": [4, 1], "Ceremonial Dagger": [5, 5], "Marble Joker": [3, 2], "Loyalty Card": [4, 2], "Dusk": [4, 7], "Fibonacci": [1, 5], "Steel Joker": [7, 2], "Hack": [5, 2], "Pareidolia": [6, 3], "Space Joker": [3, 5], "Burglar": [1, 10], "Blackboard": [2, 10], "Sixth Sense": [8, 10], "Constellation": [9, 10], "Hiker": [0, 11], "Card Sharp": [6, 11], "Madness": [8, 11], "Seance": [0, 12], "Vampire": [2, 12], "Shortcut": [3, 12], "Hologram": [4, 12], "Cloud 9": [7, 12], "Rocket": [8, 12], "Midas Mask": [0, 13], "Luchador": [1, 13], "Gift Card": [3, 13], "Turtle Bean": [4, 13], "Erosion": [5, 13], "To the Moon": [8, 13], "Stone Joker": [9, 0], "Lucky Cat": [5, 14], "Bull": [7, 14], "Diet Cola": [8, 14], "Trading Card": [9, 14], "Flash Card": [0, 15], "Spare Trousers": [4, 15], "Ramen": [2, 15], "Seltzer": [3, 15], "Castle": [9, 15], "Mr Bones": [3, 4], "Acrobat": [2, 1], "Sock and Buskin": [3, 1], "Troubadour": [0, 2], "Certificate": [8, 8], "Smeared Joker": [4, 6], "Throwback": [5, 7], "Rough Gem": [9, 7], "Bloodstone": [0, 8], "Arrowhead": [1, 8], "Onyx Agate": [2, 8], "Glass Joker": [1, 3], "Showman": [6, 5], "Flower Pot": [0, 6], "Merry Andy": [8, 0], "Oops All 6s": [5, 6], "The Idol": [6, 7], "Seeing Double": [4, 4], "Matador": [4, 5], "Satellite": [8, 7], "Cartomancer": [7, 3], "Astronomer": [2, 7], "Bootstraps": [9, 8], "DNA": [5, 10], "Vagabond": [5, 12], "Baron": [6, 12], "Obelisk": [9, 12], "Baseball Card": [6, 14], "Ancient Joker": [7, 15], "Campfire": [5, 15], "Blueprint": [0, 3], "Wee Joker": [0, 4], "Hit the Road": [8, 5], "The Duo": [5, 4], "The Trio": [6, 4], "The Family": [7, 4], "The Order": [8, 4], "The Tribe": [9, 4], "Stuntman": [8, 6], "Invisible Joker": [1, 7], "Brainstorm": [7, 7], "Drivers License": [0, 7], "Burnt Joker": [3, 7], "Canio": [3, 8], "Triboulet": [4, 8], "Yorick": [5, 8], "Chicot": [6, 8], "Perkeo": [7, 8]};
 const EDS=["","负片","多彩","全息","闪箔"];
+
+/* ===== 图片陈列柜 ===== */
+const SHEET="image/Jokers.png", CW=142, CH=190, COLS=10, ROWS=16;
+function jokerChip(en,size){
+  const p=JPOS[en]; if(!p)return "";
+  const k=size/CW, h=Math.round(CH*k);
+  return '<span class="chip" style="width:'+size+'px;height:'+h+'px">'+
+    '<img src="'+SHEET+'" alt="" style="width:'+(COLS*CW*k)+'px;height:'+(ROWS*CH*k)+'px;'+
+    'margin-left:-'+(p[0]*CW*k)+'px;margin-top:-'+(p[1]*CH*k)+'px">'+
+    '</span>';
+}
+
+let pickTarget=null;
+function openPicker(target){
+  pickTarget=target;
+  const box=$("picker"), grid=$("pgrid");
+  if(!grid.dataset.built){
+    const order=[[4,"传奇"],[3,"稀有"],[2,"罕见"],[1,"普通"]];
+    let html="";
+    for(const [r,label] of order){
+      html+='<div class="pgroup">'+label+'</div><div class="prow">';
+      html+=POOLS[r].map(en=>
+        '<button class="pcard" data-j="'+en+'" title="'+jname(en)+'">'+
+        jokerChip(en,66)+'<span class="pname">'+jname(en)+'</span></button>').join("");
+      html+='</div>';
+    }
+    grid.innerHTML=html;
+    grid.dataset.built="1";
+    grid.onclick=e=>{
+      const b=e.target.closest(".pcard"); if(!b)return;
+      const sel=pickTarget.querySelector("select.j");
+      sel.value=b.dataset.j;
+      pickTarget.querySelector(".face").innerHTML=
+        jokerChip(b.dataset.j,44)+'<span class="fname">'+jname(b.dataset.j)+'</span>';
+      closePicker();
+    };
+  }
+  $("psearch").value="";
+  [...grid.querySelectorAll(".pcard")].forEach(c=>c.style.display="");
+  [...grid.querySelectorAll(".pgroup")].forEach(c=>c.style.display="");
+  box.style.display="flex";
+}
+function closePicker(){$("picker").style.display="none";}
+
+function filterPicker(q){
+  q=q.trim().toLowerCase();
+  const grid=$("pgrid");
+  [...grid.querySelectorAll(".pcard")].forEach(c=>{
+    const en=c.dataset.j.toLowerCase(), cn=jname(c.dataset.j);
+    c.style.display=(!q||en.includes(q)||cn.includes(q))?"":"none";
+  });
+  [...grid.querySelectorAll(".pgroup")].forEach(g=>{g.style.display=q?"none":"";});
+}
+
 const ALL=[...POOLS[1],...POOLS[2],...POOLS[3],...POOLS[4]]
   .map(n=>({en:n,cn:CN[n]||n})).sort((a,b)=>a.cn.localeCompare(b.cn,"zh"));
 const RAR={1:"普通",2:"罕见",3:"稀有",4:"传奇"};
@@ -750,13 +835,15 @@ const jname=en=>(CN[en]||en);
 function addWant(en,ante,ed){
   const d=document.createElement("div");
   d.className="want";
-  d.innerHTML='<select class="j">'+ALL.map(o=>
+  d.innerHTML='<div class="face">'+jokerChip(en,44)+'<span class="fname">'+jname(en)+'</span></div>'+
+    '<select class="j" style="display:none">'+ALL.map(o=>
       '<option value="'+o.en+'"'+(o.en===en?" selected":"")+'>'+o.cn+'</option>').join("")+'</select>'+
     '<select class="e">'+EDS.map(e=>
       '<option value="'+e+'"'+(e===ed?" selected":"")+'>'+(e||"不限版本")+'</option>').join("")+'</select>'+
     '<input class="ant" type="number" value="'+(ante||3)+'">'+
     '<button class="del">×</button>';
   d.querySelector(".del").onclick=()=>d.remove();
+  d.querySelector(".face").onclick=()=>openPicker(d);
   $("wants").appendChild(d);
 }
 addWant("Perkeo",3,"");
@@ -815,7 +902,7 @@ $("go").onclick=()=>{
   };
   const report=(seed,where)=>{
     hits++;
-    const txt=where.map(g=>jname(g.name)+" <span class=en>"+g.name+"</span> — 底注 "+g.ante+
+    const txt=where.map(g=>jokerChip(g.name,26)+" "+jname(g.name)+" — 底注 "+g.ante+
       " ・ "+g.from+(g.edition?' <span class="ed">'+g.edition+"</span>":"")+
       (g.soul?" ✦灵魂牌":"")).join("<br>");
     $("hits").insertAdjacentHTML("afterbegin",
@@ -864,6 +951,9 @@ $("go").onclick=()=>{
     })();
   }
 };
+
+$("pclose").onclick=closePicker;
+$("psearch").oninput=e=>filterPicker(e.target.value);
 
 $("peek").onclick=()=>{
   const seed=$("one").value.trim().toUpperCase();
