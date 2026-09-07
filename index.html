@@ -384,7 +384,8 @@ function makePlan(groups,slots,maxAnte,withPacks){
 /* 返回 true = 这个种子有戏，值得完整算一遍 */
 function fastScan(seed,plan){
   const run=_shared.reset(seed);
-  const found=new Set();
+  const found=new Map();   /* 名字 → 最早出现的底注 */
+  const mark=(n,a)=>{ if(!found.has(n))found.set(n,a); };
   const st={};
   const {needRar,needLeg,slots,maxAnte,withPacks}=plan;
 
@@ -396,7 +397,7 @@ function fastScan(seed,plan){
           const r=run.rand("rarity"+a+"sho");
           const rar=r>0.95?3:(r>0.7?2:1);
           if(needRar.has(rar))
-            found.add(run.choice("Joker"+rar+"sho"+a,POOLS[rar]));
+            mark(run.choice("Joker"+rar+"sho"+a,POOLS[rar]),a);
         }
       }   /* 商店的塔罗/星球不会翻灵魂牌 */
     }
@@ -415,13 +416,13 @@ function fastScan(seed,plan){
             const rar=r>0.95?3:(r>0.7?2:1);
             const n=run.choice("Joker"+rar+"buf"+a,POOLS[rar],locked);
             locked.add(n);
-            if(needRar.has(rar))found.add(n);
+            if(needRar.has(rar))mark(n,a);
           }
         } else if(info.kind==="Arcana Pack"&&needLeg){
           let done=false;
           for(let k=0;k<info.size&&!done;k++)
             if(run.rand("soul_Tarot"+a)>0.997){
-              found.add(run.choice("Joker4",POOLS[4]));done=true;
+              mark(run.choice("Joker4",POOLS[4]),a);done=true;
             }
         } else if(info.kind==="Spectral Pack"&&needLeg){
           let sd=false,hd=false;
@@ -429,20 +430,21 @@ function fastScan(seed,plan){
             const isSoul=!sd&&run.rand("soul_Spectral"+a)>0.997;
             const isHole=!hd&&run.rand("soul_Spectral"+a)>0.997;
             if(isHole)hd=true;
-            else if(isSoul){sd=true;found.add(run.choice("Joker4",POOLS[4]));}
+            else if(isSoul){sd=true;mark(run.choice("Joker4",POOLS[4]),a);}
           }
         }
       }
     }
 
-    /* 提前放弃：某一组到了最晚底注还一个都没中 */
+    /* 提前放弃：某一组过了它的最晚底注还一个都没中 */
     for(const grp of plan.groups){
       const maxA=Math.max(...grp.map(w=>w.ante));
-      if(a>=maxA && !grp.some(w=>w.ante>=a&&found.has(w.name))) return false;
+      if(a>=maxA && !grp.some(w=>found.has(w.name)&&found.get(w.name)<=w.ante))
+        return false;
     }
   }
   for(const grp of plan.groups)
-    if(!grp.some(w=>found.has(w.name))) return false;
+    if(!grp.some(w=>found.has(w.name)&&found.get(w.name)<=w.ante)) return false;
   return true;
 }
 
@@ -728,7 +730,8 @@ function makePlan(groups,slots,maxAnte,withPacks){
 /* 返回 true = 这个种子有戏，值得完整算一遍 */
 function fastScan(seed,plan){
   const run=_shared.reset(seed);
-  const found=new Set();
+  const found=new Map();   /* 名字 → 最早出现的底注 */
+  const mark=(n,a)=>{ if(!found.has(n))found.set(n,a); };
   const st={};
   const {needRar,needLeg,slots,maxAnte,withPacks}=plan;
 
@@ -740,7 +743,7 @@ function fastScan(seed,plan){
           const r=run.rand("rarity"+a+"sho");
           const rar=r>0.95?3:(r>0.7?2:1);
           if(needRar.has(rar))
-            found.add(run.choice("Joker"+rar+"sho"+a,POOLS[rar]));
+            mark(run.choice("Joker"+rar+"sho"+a,POOLS[rar]),a);
         }
       }   /* 商店的塔罗/星球不会翻灵魂牌 */
     }
@@ -759,13 +762,13 @@ function fastScan(seed,plan){
             const rar=r>0.95?3:(r>0.7?2:1);
             const n=run.choice("Joker"+rar+"buf"+a,POOLS[rar],locked);
             locked.add(n);
-            if(needRar.has(rar))found.add(n);
+            if(needRar.has(rar))mark(n,a);
           }
         } else if(info.kind==="Arcana Pack"&&needLeg){
           let done=false;
           for(let k=0;k<info.size&&!done;k++)
             if(run.rand("soul_Tarot"+a)>0.997){
-              found.add(run.choice("Joker4",POOLS[4]));done=true;
+              mark(run.choice("Joker4",POOLS[4]),a);done=true;
             }
         } else if(info.kind==="Spectral Pack"&&needLeg){
           let sd=false,hd=false;
@@ -773,20 +776,21 @@ function fastScan(seed,plan){
             const isSoul=!sd&&run.rand("soul_Spectral"+a)>0.997;
             const isHole=!hd&&run.rand("soul_Spectral"+a)>0.997;
             if(isHole)hd=true;
-            else if(isSoul){sd=true;found.add(run.choice("Joker4",POOLS[4]));}
+            else if(isSoul){sd=true;mark(run.choice("Joker4",POOLS[4]),a);}
           }
         }
       }
     }
 
-    /* 提前放弃：某一组到了最晚底注还一个都没中 */
+    /* 提前放弃：某一组过了它的最晚底注还一个都没中 */
     for(const grp of plan.groups){
       const maxA=Math.max(...grp.map(w=>w.ante));
-      if(a>=maxA && !grp.some(w=>w.ante>=a&&found.has(w.name))) return false;
+      if(a>=maxA && !grp.some(w=>found.has(w.name)&&found.get(w.name)<=w.ante))
+        return false;
     }
   }
   for(const grp of plan.groups)
-    if(!grp.some(w=>found.has(w.name))) return false;
+    if(!grp.some(w=>found.has(w.name)&&found.get(w.name)<=w.ante)) return false;
   return true;
 }
 
