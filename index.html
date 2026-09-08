@@ -5,110 +5,284 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>小丑牌选种器</title>
 <style>
-  :root{--felt:#28524f;--felt-dark:#1c3a38;--chip:#f4eee4;
-        --red:#fe5f55;--blue:#009dff;--gold:#ffa200;--dim:#8fa9a6;}
+  @font-face{
+    font-family:"m6x11";
+    src:url("image/m6x11plus.ttf") format("truetype");
+    font-display:swap;
+  }
+  :root{
+    --felt:#1d4a45;
+    --panel:#3f4d4c;
+    --panel-lite:#4d5c5a;
+    --ink:#131f1e;
+    --chip:#fdf6ec;
+    --red:#fe5f55;      --red-dk:#c03a31;
+    --blue:#009dff;     --blue-dk:#0068ad;
+    --gold:#ffa200;     --gold-dk:#c06f00;
+    --green:#4bc292;    --green-dk:#2c8560;
+    --dim:#9cb0ad;
+    --stroke:#e2e0d4;   /* 面板外描边 */
+    /* 像素切角：4px 台阶 */
+    --cut:polygon(
+      0 8px, 4px 8px, 4px 4px, 8px 4px, 8px 0,
+      calc(100% - 8px) 0, calc(100% - 8px) 4px, calc(100% - 4px) 4px, calc(100% - 4px) 8px, 100% 8px,
+      100% calc(100% - 8px), calc(100% - 4px) calc(100% - 8px), calc(100% - 4px) calc(100% - 4px), calc(100% - 8px) calc(100% - 4px), calc(100% - 8px) 100%,
+      8px 100%, 8px calc(100% - 4px), 4px calc(100% - 4px), 4px calc(100% - 8px), 0 calc(100% - 8px)
+    );
+    --cut-sm:polygon(
+      0 6px, 3px 6px, 3px 3px, 6px 3px, 6px 0,
+      calc(100% - 6px) 0, calc(100% - 6px) 3px, calc(100% - 3px) 3px, calc(100% - 3px) 6px, 100% 6px,
+      100% calc(100% - 6px), calc(100% - 3px) calc(100% - 6px), calc(100% - 3px) calc(100% - 3px), calc(100% - 6px) calc(100% - 3px), calc(100% - 6px) 100%,
+      6px 100%, 6px calc(100% - 3px), 3px calc(100% - 3px), 3px calc(100% - 6px), 0 calc(100% - 6px)
+    );
+  }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-  button,.face,.pcard{-webkit-touch-callout:none;user-select:none;-webkit-user-select:none}
-  button:focus,button:focus-visible,.face:focus{outline:none}
-  .pcard:active,.face:active{filter:brightness(1.25)}
-  body{margin:0;padding:20px 16px 60px;background:var(--felt-dark);color:var(--chip);
-       font-family:ui-monospace,"PingFang SC","Microsoft YaHei",Menlo,monospace;font-size:15px;line-height:1.55}
+  body{
+    margin:0;padding:16px 12px 70px;
+    background:var(--felt);
+    color:var(--chip);
+    font-family:"m6x11",ui-monospace,"PingFang SC","Microsoft YaHei",monospace;
+    font-size:18px;line-height:1.45;
+    image-rendering:pixelated;
+  }
   .wrap{max-width:640px;margin:0 auto}
-  h1{font-size:26px;margin:0 0 4px;font-weight:800;letter-spacing:-0.02em}
-  .sub{color:var(--dim);font-size:13px;margin:0 0 24px}
-  fieldset{border:2px solid var(--felt);border-radius:10px;background:var(--felt);
-           padding:14px 16px 18px;margin:0 0 18px}
-  legend{padding:0 8px;font-size:13px;color:var(--gold);font-weight:700}
-  label{display:block;font-size:12px;color:var(--dim);margin:10px 0 4px}
-  input,select{width:100%;padding:9px 11px;border-radius:7px;border:2px solid var(--felt-dark);
-        background:var(--felt-dark);color:var(--chip);font:inherit;font-size:15px}
-  input:focus,select:focus{outline:none;border-color:var(--blue)}
-  .row{display:flex;gap:10px}.row>div{flex:1}
-  button{width:100%;margin-top:14px;padding:12px;border:none;border-radius:8px;cursor:pointer;
-         background:var(--red);color:#fff;font:inherit;font-size:16px;font-weight:700}
-  button.ghost{background:var(--felt-dark);color:var(--dim);font-size:14px;padding:9px}
-  button:active{transform:translateY(2px)}
-  .wantgroup{border:1px solid var(--felt-dark);border-radius:8px;padding:8px 8px 4px;margin-top:8px}
-  .want{display:grid;grid-template-columns:1fr 82px 56px 32px;gap:6px;align-items:center;margin-top:4px}
+
+  /* ---- 标题 ---- */
+  .title{text-align:center;margin:4px 0 2px}
+  .title img{width:min(78%,330px);height:auto;image-rendering:pixelated}
+  .sub{color:var(--dim);font-size:15px;text-align:center;margin:6px 0 20px}
+
+  /* ---- 面板：外层描边 + 内层底色，都用切角 ---- */
+  fieldset{
+    border:none;margin:0 0 20px;padding:0;
+    background:var(--stroke);
+    clip-path:var(--cut);
+    filter:drop-shadow(0 5px 0 rgba(0,0,0,.45));
+  }
+  .fs-in{
+    margin:3px;padding:16px 14px 18px;
+    background:var(--panel);
+    clip-path:var(--cut);
+  }
+  legend{display:none}
+  .cap{
+    display:inline-block;margin:0 0 10px;padding:2px 12px 3px;
+    font-size:16px;color:var(--ink);background:var(--gold);
+    clip-path:var(--cut-sm);
+    box-shadow:0 3px 0 var(--gold-dk);
+  }
+
+  label{display:block;font-size:14px;color:var(--dim);margin:12px 0 5px}
+  input,select{
+    width:100%;padding:9px 11px;border:none;
+    background:var(--ink);color:var(--chip);
+    font:inherit;font-size:17px;
+    clip-path:var(--cut-sm);
+  }
+  input:focus,select:focus{outline:none;background:#0a1413}
+  input::placeholder{color:#5d706e}
+  .row{display:flex;gap:10px}.row>div{flex:1;min-width:0}
+
+  /* ---- 按钮：切角 + 厚下沿 ---- */
+  button{
+    width:100%;margin-top:16px;padding:10px;
+    border:none;cursor:pointer;
+    background:var(--red);color:var(--chip);
+    font:inherit;font-size:19px;
+    clip-path:var(--cut-sm);
+    box-shadow:0 5px 0 var(--red-dk);
+    transition:transform .04s,box-shadow .04s;
+  }
+  button:active{transform:translateY(5px);box-shadow:0 0 0 var(--red-dk)}
+  button.ghost{background:var(--blue);box-shadow:0 5px 0 var(--blue-dk);font-size:16px;padding:8px}
+  button.ghost:active{box-shadow:0 0 0 var(--blue-dk)}
+  button.gold{background:var(--gold);color:var(--ink);box-shadow:0 5px 0 var(--gold-dk)}
+  button.gold:active{box-shadow:0 0 0 var(--gold-dk)}
+
+  /* ---- 说明气泡 ---- */
+  .i{
+    display:inline-flex;align-items:center;justify-content:center;
+    width:20px;height:20px;margin-left:6px;vertical-align:-4px;
+    background:var(--dim);color:var(--panel);
+    font-size:13px;cursor:pointer;flex:none;
+    clip-path:polygon(
+      0 6px, 2px 6px, 2px 4px, 4px 4px, 4px 2px, 6px 2px, 6px 0,
+      calc(100% - 6px) 0, calc(100% - 6px) 2px, calc(100% - 4px) 2px, calc(100% - 4px) 4px,
+      calc(100% - 2px) 4px, calc(100% - 2px) 6px, 100% 6px,
+      100% calc(100% - 6px), calc(100% - 2px) calc(100% - 6px), calc(100% - 2px) calc(100% - 4px),
+      calc(100% - 4px) calc(100% - 4px), calc(100% - 4px) calc(100% - 2px),
+      calc(100% - 6px) calc(100% - 2px), calc(100% - 6px) 100%,
+      6px 100%, 6px calc(100% - 2px), 4px calc(100% - 2px), 4px calc(100% - 4px),
+      2px calc(100% - 4px), 2px calc(100% - 6px), 0 calc(100% - 6px));
+  }
+  .i:active{background:var(--gold)}
+  #tip{
+    display:none;position:fixed;z-index:200;left:50%;bottom:22px;
+    transform:translateX(-50%);width:min(90vw,430px);
+    background:var(--stroke);clip-path:var(--cut);
+    box-shadow:0 0 0 100vmax rgba(0,0,0,.55);
+  }
+  #tip .tip-in{
+    margin:3px;padding:15px 16px;background:var(--panel);
+    clip-path:var(--cut);font-size:16px;line-height:1.65;color:var(--chip);
+  }
+  #tip b{color:var(--gold)}
+
+  /* ---- 条件组 ---- */
+  .wantgroup{
+    background:var(--panel-lite);clip-path:var(--cut-sm);
+    padding:9px 9px 6px;margin-top:10px;
+  }
+  .want{display:grid;grid-template-columns:1fr 84px 52px 30px;gap:6px;align-items:center;margin-top:5px}
   .want:first-child{margin-top:0}
-  .or-row{margin-top:4px}
-  .or-row button{width:auto;margin:0;padding:4px 10px;font-size:12px}
-  .face{display:flex;align-items:center;gap:7px;padding:5px 8px;border-radius:7px;
-        border:2px solid var(--felt-dark);background:var(--felt-dark);cursor:pointer;
-        min-height:44px;overflow:hidden}
-  .fname{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .want select,.want input{padding:7px 6px;font-size:15px}
+  .want .del{
+    width:30px;margin:0;padding:6px 0;font-size:17px;
+    background:transparent;color:var(--dim);box-shadow:none;clip-path:none;
+  }
+  .want .del:active{transform:none;color:var(--red)}
+  .or-row{margin-top:6px}
+  .or-row button{width:auto;margin:0;padding:3px 12px;font-size:14px;
+    background:var(--green);box-shadow:0 4px 0 var(--green-dk)}
+  .or-row button:active{box-shadow:0 0 0 var(--green-dk)}
+
+  .face{
+    display:flex;align-items:center;gap:7px;padding:4px 8px;
+    background:var(--ink);cursor:pointer;min-height:44px;overflow:hidden;
+    clip-path:var(--cut-sm);
+  }
+  .fname{font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .chip{display:inline-block;flex:none;overflow:hidden;position:relative;vertical-align:middle}
   .chip img{display:block;image-rendering:pixelated;max-width:none}
-  #picker{display:none;position:fixed;inset:0;background:rgba(12,26,25,.94);z-index:99;
-          flex-direction:column;padding:14px}
-  #picker .bar{display:flex;gap:8px;align-items:center;margin-bottom:10px}
-  #picker .bar input{flex:1;margin:0}
-  #picker .bar button{width:auto;margin:0;padding:9px 15px;font-size:14px}
-  #pgrid{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
-  .pgroup{color:var(--gold);font-size:12px;font-weight:700;margin:12px 0 6px;
-          position:sticky;top:0;background:rgba(12,26,25,.96);padding:3px 0}
-  .prow{display:grid;grid-template-columns:repeat(auto-fill,minmax(72px,1fr));gap:7px}
-  .pcard{width:auto;margin:0;padding:5px 2px 6px;background:var(--felt);border-radius:8px;
-         display:flex;flex-direction:column;align-items:center;gap:3px;font-weight:400}
-  .pname{font-size:10.5px;color:var(--dim);line-height:1.25;text-align:center;
-         word-break:break-all}
-  .want select,.want input{padding:8px 7px;font-size:14px}
-  .want .del{width:34px;margin:0;padding:8px 0;background:transparent;color:var(--dim);font-size:18px}
-  .hit{padding:10px 12px;margin-top:8px;border-radius:8px;background:var(--felt-dark)}
-  .hit .seed{font-size:19px;font-weight:800;color:var(--gold);letter-spacing:0.08em}
-  .hit .where{font-size:12.5px;color:var(--dim);margin-top:3px;line-height:1.75}
-  .ed{color:var(--red);font-weight:700}
-  .stat{font-size:13px;color:var(--dim);margin-top:12px;line-height:1.8}
-  .stat b{color:var(--chip);font-weight:700}
-  .preview{font-size:13px;line-height:1.9}
-  .preview .a{color:var(--gold);font-weight:700}
+
+  /* ---- 结果 ---- */
+  .hit{
+    padding:11px 13px;margin-top:10px;
+    background:var(--panel-lite);clip-path:var(--cut-sm);
+  }
+  .hit{position:relative}
+  .hit .seed{font-size:25px;color:var(--gold);letter-spacing:.15em;cursor:pointer}
+  .hit .cp{
+    position:absolute;top:10px;right:10px;width:auto;margin:0;
+    padding:3px 11px;font-size:14px;
+    background:var(--felt);box-shadow:0 3px 0 #12302d;
+  }
+  .hit .cp:active{box-shadow:0 0 0 #12302d}
+  .tools{display:flex;gap:8px;margin-top:12px}
+  .tools button{margin:0;flex:1;font-size:15px;padding:7px}
+  .odds{
+    margin-top:14px;padding:10px 12px;
+    background:var(--panel-lite);clip-path:var(--cut-sm);
+    font-size:15px;line-height:1.7;
+  }
+  .odds .big{font-size:19px;color:var(--gold)}
+  .odds .lv{display:inline-block;padding:0 9px;margin-right:7px;font-size:14px;
+    color:var(--ink);clip-path:var(--cut-sm)}
+  .lv-easy{background:var(--green)}
+  .lv-mid{background:var(--gold)}
+  .lv-hard{background:var(--red);color:var(--chip)}
+  .hit .where{font-size:15px;margin-top:5px;line-height:1.95}
+  .ed{color:var(--red)}
+  .stat{font-size:15px;color:var(--dim);margin-top:14px;line-height:1.8}
+  .stat b{color:var(--gold)}
+  .preview{font-size:15px;line-height:1.95}
+  .preview .a{color:var(--gold)}
   .preview .o{color:var(--dim)}
-  .en{color:var(--dim);font-size:11px}
+
+  /* ---- 陈列柜 ---- */
+  #picker{display:none;position:fixed;inset:0;z-index:99;
+    background:rgba(19,31,30,.97);flex-direction:column;padding:12px}
+  #picker .bar{display:flex;gap:8px;align-items:center;margin-bottom:10px}
+  #picker .bar input{flex:1;margin:0;background:var(--panel)}
+  #picker .bar button{width:auto;margin:0;padding:9px 16px;font-size:16px}
+  #pgrid{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
+  .pgroup{
+    color:var(--ink);font-size:15px;margin:14px 0 8px;padding:1px 12px 2px;
+    background:var(--gold);display:inline-block;
+    clip-path:var(--cut-sm);box-shadow:0 3px 0 var(--gold-dk);
+  }
+  .prow{display:grid;grid-template-columns:repeat(auto-fill,minmax(74px,1fr));gap:8px}
+  .pcard{
+    width:auto;margin:0;padding:6px 2px 7px;
+    background:var(--panel);clip-path:var(--cut-sm);
+    box-shadow:0 4px 0 var(--ink);
+    display:flex;flex-direction:column;align-items:center;gap:4px;
+  }
+  .pcard:active{transform:translateY(4px);box-shadow:0 0 0 var(--ink)}
+  .pname{font-size:13px;color:var(--dim);line-height:1.25;text-align:center;word-break:break-all}
+
+  button,.face,.pcard,.i{user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+  button:focus{outline:none}
 </style>
 </head>
 <body>
 <div class="wrap">
-<h1>小丑牌选种器</h1>
-<p class="sub">挑小丑、卡底注、限定版本，剩下交给它。</p>
+<div class="title"><img src="image/balatro-logo.png" alt="BALATRO"></div>
+<p class="sub">小丑牌种子生成器 ・ 按条件寻找称心的种子</p>
 
-<fieldset>
-  <legend>我想要</legend>
+<fieldset><div class="fs-in">
+  <div class="cap">筛选条件<span class="i" data-tip="cond" style="background:var(--ink);color:var(--gold);margin-left:8px">i</span></div>
   <div id="wants"></div>
-  <button class="ghost" id="add">+ 再加一张</button>
-  <div class="row" style="margin-top:14px">
-    <div><label>每底注看几个商店位</label><input id="slots" type="number" value="6"></div>
-    <div><label>找到几个就停</label><input id="found" type="number" value="5"></div>
+  <button class="ghost" id="add">+ 增加条件</button>
+
+  <div class="row" style="margin-top:16px">
+    <div>
+      <label>每底注看几个商店位<span class="i" data-tip="shop">i</span></label>
+      <input id="slots" type="number" value="6">
+    </div>
+    <div>
+      <label>找到几个就停<span class="i" data-tip="stop">i</span></label>
+      <input id="found" type="number" value="5">
+    </div>
   </div>
-  <label style="display:flex;align-items:center;gap:8px;margin-top:14px;color:var(--chip);font-size:14px">
-    <input type="checkbox" id="packs" checked style="width:auto;margin:0"> 连卡包里的一起搜
-  </label>
-  <label>从哪个种子开始数（留空＝随机找个地方开始）</label>
-  <input id="from" placeholder="留空就好" autocapitalize="characters" spellcheck="false">
-  <button id="go">开始捞</button>
-  <button class="ghost" id="stop" style="display:none">停下</button>
+
+  <div style="display:flex;align-items:center;gap:8px;margin-top:16px;color:var(--chip);font-size:16px">
+    <label style="display:flex;align-items:center;gap:8px;margin:0;color:inherit;font-size:inherit;cursor:pointer">
+      <input type="checkbox" id="packs" checked style="width:auto;margin:0;clip-path:none"> 连卡包里的一起搜
+    </label>
+    <span class="i" data-tip="packs">i</span>
+  </div>
+
+  <label>从哪个种子开始数<span class="i" data-tip="from">i</span></label>
+  <input id="from" placeholder="留空＝随机找个地方开始" autocapitalize="characters" spellcheck="false">
+
+  <button class="gold" id="est">先估一下难度</button>
+  <div class="odds" id="odds" style="display:none"></div>
+  <button id="go">开始寻找</button>
+  <button class="ghost" id="stop" style="display:none">结束搜寻</button>
   <div class="stat" id="stat"></div>
-</fieldset>
+</div></fieldset>
 
-<fieldset>
-  <legend>捞到的种子</legend>
-  <div id="hits" style="font-size:14px;color:var(--dim)">还没开始。</div>
-</fieldset>
+<fieldset><div class="fs-in">
+  <div class="cap">捞到的种子</div>
+  <div id="hits" style="font-size:15px;color:var(--dim)">还没开始。</div>
+  <div class="tools" id="tools" style="display:none">
+    <button class="ghost" id="copyall">复制全部</button>
+    <button class="ghost" id="clearall">清空列表</button>
+  </div>
+</div></fieldset>
 
-<fieldset>
-  <legend>单个种子看详情</legend>
+<fieldset><div class="fs-in">
+  <div class="cap">简易种子分析</div>
   <input id="one" placeholder="输入种子" autocapitalize="characters" spellcheck="false">
-  <button class="ghost" id="peek" style="margin-top:10px">看看这局商店卖啥</button>
-  <div class="preview" id="pv" style="margin-top:10px"></div>
-</fieldset>
+  <button class="ghost" id="peek" style="margin-top:12px">查询种子详情</button>
+  <div class="preview" id="pv" style="margin-top:12px"></div>
+</div></fieldset>
+
+</div>
 
 <div id="picker">
   <div class="bar">
-    <input id="psearch" placeholder="搜名字…" autocomplete="off">
+    <input id="psearch" placeholder="输入小丑牌名称…" autocomplete="off">
     <button id="pclose">关闭</button>
   </div>
   <div id="pgrid"></div>
 </div>
-</div>
+
+<div id="tip"><div class="tip-in">
+  <div id="tiptext"></div>
+  <button class="gold" id="tipclose">知道了</button>
+</div></div>
 
 <script type="text/plain" id="engine-src">
 const POOLS = {
@@ -804,7 +978,7 @@ function matchFast(seed,plan){
   return matchSeed(seed,plan.groups,plan.slots,plan.maxAnte,plan.withPacks);
 }
 
-const CN={"Joker": "小丑", "Greedy Joker": "贪婪小丑", "Lusty Joker": "色欲小丑", "Wrathful Joker": "愤怒小丑", "Gluttonous Joker": "暴食小丑", "Jolly Joker": "欢乐小丑", "Zany Joker": "滑稽小丑", "Mad Joker": "疯狂小丑", "Crazy Joker": "狂野小丑", "Droll Joker": "滑稽小丑", "Sly Joker": "奸诈小丑", "Wily Joker": "狡猾小丑", "Clever Joker": "聪敏小丑", "Devious Joker": "阴险小丑", "Crafty Joker": "精明小丑", "Half Joker": "半张小丑", "Credit Card": "信用卡", "Banner": "旗帜", "Mystic Summit": "神秘之峰", " 8 Ball": "八号球", "Misprint": "印错", "Raised Fist": "致胜之拳", "Chaos the Clown": "混沌小丑", "Scary Face": "恐怖面孔", "Abstract Joker": "抽象小丑", "Delayed Gratification": "延迟满足", "Gros Michel": "大麦克香蕉", "Even Steven": "偶数史蒂文", "Odd Todd": "奇数托德", "Scholar": "学者", "Business Card": "名片", "Supernova": "超新星", "Ride the Bus": "搭乘巴士", "Egg": "蛋", "Runner": "跑步选手", "Ice Cream": "冰淇淋", "Splash": "飞溅", "Blue Joker": "蓝色小丑", "Faceless Joker": "无面小丑", "Green Joker": "绿色小丑", "Superposition": "叠加态", "To Do List": "待办清单", "Cavendish": "卡文迪什", "Red Card": "红牌", "Square Joker": "方块小丑", "Riff raff": "乌合之众", "Photograph": "照片", "Reserved Parking": "私人车位", "Mail In Rebate": "邮件回扣", "Hallucination": "幻觉", "Fortune Teller": "占卜师", "Juggler": "杂耍师", "Drunkard": "醉汉", "Golden Joker": "黄金小丑", "Popcorn": "爆米花", "Walkie Talkie": "对讲机", "Smiley Face": "笑脸", "Golden Ticket": "金票", "Swashbuckler": "侠客", "Hanging Chad": "未断选票", "Shoot the Moon": "射月", "Joker Stencil": "小丑模板", "Four Fingers": "四指", "Mime": "哑剧演员", "Ceremonial Dagger": "仪式匕首", "Marble Joker": "大理石小丑", "Loyalty Card": "会员卡", "Dusk": "黄昏", "Fibonacci": "斐波那契", "Steel Joker": "钢铁小丑", "Hack": "烂脱口秀演员", "Pareidolia": "幻视", "Space Joker": "太空小丑", "Burglar": "窃贼", "Blackboard": "黑板", "Sixth Sense": "第六感", "Constellation": "星座", "Hiker": "徒步者", "Card Sharp": "老千小丑", "Madness": "疯狂", "Seance": "通灵", "Vampire": "吸血鬼", "Shortcut": "捷径", "Hologram": "全息影像", "Cloud 9": "九霄云", "Rocket": "火箭", "Midas Mask": "迈达斯面具", "Luchador": "摔角手", "Gift Card": "礼品卡", "Turtle Bean": "龟豆", "Erosion": "侵蚀", "To the Moon": "飞向月球", "Stone Joker": "石头小丑", "Lucky Cat": "幸运猫", "Bull": "公牛", "Diet Cola": "无糖可乐", "Trading Card": "交易卡", "Flash Card": "抽认卡", "Spare Trousers": "备用长裤", "Ramen": "拉面", "Seltzer": "苏打水", "Castle": "城堡", "Mr Bones": "骷髅先生", "Acrobat": "杂技演员", "Sock and Buskin": "悲与喜", "Troubadour": "吟游诗人", "Certificate": "证书", "Smeared Joker": "涂抹小丑", "Throwback": "复古", "Rough Gem": "原石", "Bloodstone": "血石", "Arrowhead": "箭头", "Onyx Agate": "缟玛瑙", "Glass Joker": "玻璃小丑", "Showman": "马戏团长", "Flower Pot": "花盆", "Merry Andy": "快乐安迪", "Oops All 6s": "六六大顺", "The Idol": "偶像", "Seeing Double": "重影", "Matador": "斗牛士", "Satellite": "卫星", "Cartomancer": "纸牌占卜师", "Astronomer": "天文学家", "Bootstraps": "提靴带", "DNA": "DNA", "Vagabond": "流浪汉", "Baron": "男爵", "Obelisk": "方尖碑", "Baseball Card": "棒球卡", "Ancient Joker": "古代小丑", "Campfire": "营火", "Blueprint": "蓝图", "Wee Joker": "小小丑", "Hit the Road": "上路吧杰克", "The Duo": "二重奏", "The Trio": "三重奏", "The Family": "一家人", "The Order": "秩序", "The Tribe": "部落", "Stuntman": "特技演员", "Invisible Joker": "隐形小丑", "Brainstorm": "头脑风暴", "Drivers License": "驾驶执照", "Burnt Joker": "烧焦小丑", "Canio": "卡尼奥", "Triboulet": "特里布莱", "Yorick": "约里克", "Chicot": "希科", "Perkeo": "帕奇欧"};
+const CN={"Joker": "小丑", "Greedy Joker": "贪婪小丑", "Lusty Joker": "色欲小丑", "Wrathful Joker": "愤怒小丑", "Gluttonous Joker": "暴食小丑", "Jolly Joker": "欢乐小丑", "Zany Joker": "滑稽小丑", "Mad Joker": "疯狂小丑", "Crazy Joker": "狂野小丑", "Droll Joker": "滑稽小丑", "Sly Joker": "奸诈小丑", "Wily Joker": "狡猾小丑", "Clever Joker": "聪敏小丑", "Devious Joker": "阴险小丑", "Crafty Joker": "精明小丑", "Half Joker": "半张小丑", "Credit Card": "信用卡", "Banner": "旗帜", "Mystic Summit": "神秘之峰", " 8 Ball": "八号球", "Misprint": "印错", "Raised Fist": "致胜之拳", "Chaos the Clown": "混沌小丑", "Scary Face": "恐怖面孔", "Abstract Joker": "抽象小丑", "Delayed Gratification": "延迟满足", "Gros Michel": "大麦克香蕉", "Even Steven": "偶数史蒂文", "Odd Todd": "奇数托德", "Scholar": "学者", "Business Card": "名片", "Supernova": "超新星", "Ride the Bus": "搭乘巴士", "Egg": "蛋", "Runner": "跑步选手", "Ice Cream": "冰淇淋", "Splash": "飞溅", "Blue Joker": "蓝色小丑", "Faceless Joker": "无面小丑", "Green Joker": "绿色小丑", "Superposition": "叠加态", "To Do List": "待办清单", "Cavendish": "卡文迪什", "Red Card": "红牌", "Square Joker": "方块小丑", "Riff raff": "乌合之众", "Photograph": "照片", "Reserved Parking": "私人车位", "Mail In Rebate": "邮件回扣", "Hallucination": "幻觉", "Fortune Teller": "占卜师", "Juggler": "杂耍师", "Drunkard": "醉汉", "Golden Joker": "黄金小丑", "Popcorn": "爆米花", "Walkie Talkie": "对讲机", "Smiley Face": "笑脸", "Golden Ticket": "金票", "Swashbuckler": "侠客", "Hanging Chad": "未断选票", "Shoot the Moon": "射月", "Joker Stencil": "小丑模板", "Four Fingers": "四指", "Mime": "哑剧演员", "Ceremonial Dagger": "仪式匕首", "Marble Joker": "大理石小丑", "Loyalty Card": "会员卡", "Dusk": "黄昏", "Fibonacci": "斐波那契", "Steel Joker": "钢铁小丑", "Hack": "烂脱口秀演员", "Pareidolia": "幻视", "Space Joker": "太空小丑", "Burglar": "窃贼", "Blackboard": "黑板", "Sixth Sense": "第六感", "Constellation": "星座", "Hiker": "徒步者", "Card Sharp": "老千小丑", "Madness": "疯狂", "Seance": "通灵", "Vampire": "吸血鬼", "Shortcut": "捷径", "Hologram": "全息影像", "Cloud 9": "九霄云外", "Rocket": "火箭", "Midas Mask": "迈达斯面具", "Luchador": "摔角手", "Gift Card": "礼品卡", "Turtle Bean": "龟豆", "Erosion": "侵蚀", "To the Moon": "飞向月球", "Stone Joker": "石头小丑", "Lucky Cat": "幸运猫", "Bull": "公牛", "Diet Cola": "无糖可乐", "Trading Card": "交易卡", "Flash Card": "抽认卡", "Spare Trousers": "备用长裤", "Ramen": "拉面", "Seltzer": "苏打水", "Castle": "城堡", "Mr Bones": "骷髅先生", "Acrobat": "杂技演员", "Sock and Buskin": "悲与喜", "Troubadour": "吟游诗人", "Certificate": "证书", "Smeared Joker": "涂抹小丑", "Throwback": "复古", "Rough Gem": "原石", "Bloodstone": "血石", "Arrowhead": "箭头", "Onyx Agate": "缟玛瑙", "Glass Joker": "玻璃小丑", "Showman": "马戏团长", "Flower Pot": "花盆", "Merry Andy": "快乐安迪", "Oops All 6s": "六六大顺", "The Idol": "偶像", "Seeing Double": "重影", "Matador": "斗牛士", "Satellite": "卫星", "Cartomancer": "纸牌占卜师", "Astronomer": "天文学家", "Bootstraps": "提靴带", "DNA": "DNA", "Vagabond": "流浪汉", "Baron": "男爵", "Obelisk": "方尖碑", "Baseball Card": "棒球卡", "Ancient Joker": "古代小丑", "Campfire": "营火", "Blueprint": "蓝图", "Wee Joker": "小小丑", "Hit the Road": "上路吧杰克", "The Duo": "二重奏", "The Trio": "三重奏", "The Family": "一家人", "The Order": "秩序", "The Tribe": "部落", "Stuntman": "特技演员", "Invisible Joker": "隐形小丑", "Brainstorm": "头脑风暴", "Drivers License": "驾驶执照", "Burnt Joker": "烧焦小丑", "Canio": "卡尼奥", "Triboulet": "特里布莱", "Yorick": "约里克", "Chicot": "希科", "Perkeo": "帕奇欧"};
 
 const JPOS={"Joker": [0, 0], "Greedy Joker": [6, 1], "Lusty Joker": [7, 1], "Wrathful Joker": [8, 1], "Gluttonous Joker": [9, 1], "Jolly Joker": [2, 0], "Zany Joker": [3, 0], "Mad Joker": [4, 0], "Crazy Joker": [5, 0], "Droll Joker": [6, 0], "Sly Joker": [0, 14], "Wily Joker": [1, 14], "Clever Joker": [2, 14], "Devious Joker": [3, 14], "Crafty Joker": [4, 14], "Half Joker": [7, 0], "Credit Card": [5, 1], "Banner": [1, 2], "Mystic Summit": [2, 2], " 8 Ball": [0, 5], "Misprint": [6, 2], "Raised Fist": [8, 2], "Chaos the Clown": [1, 0], "Scary Face": [2, 3], "Abstract Joker": [3, 3], "Delayed Gratification": [4, 3], "Gros Michel": [7, 6], "Even Steven": [8, 3], "Odd Todd": [9, 3], "Scholar": [3, 6], "Business Card": [1, 4], "Supernova": [2, 4], "Ride the Bus": [1, 6], "Egg": [0, 10], "Runner": [3, 10], "Ice Cream": [4, 10], "Splash": [6, 10], "Blue Joker": [7, 10], "Faceless Joker": [1, 11], "Green Joker": [2, 11], "Superposition": [3, 11], "To Do List": [4, 11], "Cavendish": [5, 11], "Red Card": [7, 11], "Square Joker": [9, 11], "Riff raff": [1, 12], "Photograph": [2, 13], "Reserved Parking": [6, 13], "Mail In Rebate": [7, 13], "Hallucination": [9, 13], "Fortune Teller": [7, 5], "Juggler": [0, 1], "Drunkard": [1, 1], "Golden Joker": [9, 2], "Popcorn": [1, 15], "Walkie Talkie": [8, 15], "Smiley Face": [6, 15], "Golden Ticket": [5, 3], "Swashbuckler": [9, 5], "Hanging Chad": [9, 6], "Shoot the Moon": [2, 6], "Joker Stencil": [2, 5], "Four Fingers": [6, 6], "Mime": [4, 1], "Ceremonial Dagger": [5, 5], "Marble Joker": [3, 2], "Loyalty Card": [4, 2], "Dusk": [4, 7], "Fibonacci": [1, 5], "Steel Joker": [7, 2], "Hack": [5, 2], "Pareidolia": [6, 3], "Space Joker": [3, 5], "Burglar": [1, 10], "Blackboard": [2, 10], "Sixth Sense": [8, 10], "Constellation": [9, 10], "Hiker": [0, 11], "Card Sharp": [6, 11], "Madness": [8, 11], "Seance": [0, 12], "Vampire": [2, 12], "Shortcut": [3, 12], "Hologram": [4, 12], "Cloud 9": [7, 12], "Rocket": [8, 12], "Midas Mask": [0, 13], "Luchador": [1, 13], "Gift Card": [3, 13], "Turtle Bean": [4, 13], "Erosion": [5, 13], "To the Moon": [8, 13], "Stone Joker": [9, 0], "Lucky Cat": [5, 14], "Bull": [7, 14], "Diet Cola": [8, 14], "Trading Card": [9, 14], "Flash Card": [0, 15], "Spare Trousers": [4, 15], "Ramen": [2, 15], "Seltzer": [3, 15], "Castle": [9, 15], "Mr Bones": [3, 4], "Acrobat": [2, 1], "Sock and Buskin": [3, 1], "Troubadour": [0, 2], "Certificate": [8, 8], "Smeared Joker": [4, 6], "Throwback": [5, 7], "Rough Gem": [9, 7], "Bloodstone": [0, 8], "Arrowhead": [1, 8], "Onyx Agate": [2, 8], "Glass Joker": [1, 3], "Showman": [6, 5], "Flower Pot": [0, 6], "Merry Andy": [8, 0], "Oops All 6s": [5, 6], "The Idol": [6, 7], "Seeing Double": [4, 4], "Matador": [4, 5], "Satellite": [8, 7], "Cartomancer": [7, 3], "Astronomer": [2, 7], "Bootstraps": [9, 8], "DNA": [5, 10], "Vagabond": [5, 12], "Baron": [6, 12], "Obelisk": [9, 12], "Baseball Card": [6, 14], "Ancient Joker": [7, 15], "Campfire": [5, 15], "Blueprint": [0, 3], "Wee Joker": [0, 4], "Hit the Road": [8, 5], "The Duo": [5, 4], "The Trio": [6, 4], "The Family": [7, 4], "The Order": [8, 4], "The Tribe": [9, 4], "Stuntman": [8, 6], "Invisible Joker": [1, 7], "Brainstorm": [7, 7], "Drivers License": [0, 7], "Burnt Joker": [3, 7], "Canio": [3, 8], "Triboulet": [4, 8], "Yorick": [5, 8], "Chicot": [6, 8], "Perkeo": [7, 8]};
 const EDS=["","负片","多彩","全息","闪箔"];
@@ -947,7 +1121,7 @@ $("go").onclick=()=>{
   const typed=$("from").value.trim();
   let cursor = typed ? indexFromSeed(typed) : Math.floor(Math.random()*TOTAL);
 
-  running=true;$("stop").style.display="block";$("hits").innerHTML="";
+  running=true;$("stop").style.display="block";$("hits").innerHTML="";allHits=[];
   let tried=0,hits=0;const t0=performance.now();
   const CHUNK=8000;
 
@@ -963,7 +1137,10 @@ $("go").onclick=()=>{
       " ・ "+g.from+(g.edition?' <span class="ed">'+g.edition+"</span>":"")+
       (g.soul?" ✦灵魂牌":"")).join("<br>");
     $("hits").insertAdjacentHTML("afterbegin",
-      '<div class="hit"><div class="seed">'+seed+'</div><div class="where">'+txt+"</div></div>");
+      '<div class="hit"><button class="cp">复制</button>'+
+      '<div class="seed">'+seed+'</div><div class="where">'+txt+"</div></div>");
+    allHits.push({seed:seed,where:where});
+    $("tools").style.display="flex";
   };
   const finish=()=>{
     running=false;$("stop").style.display="none";
@@ -1009,6 +1186,207 @@ $("go").onclick=()=>{
   }
 };
 
+
+/* ===== 说明气泡 ===== */
+const TIPS={
+  cond:"点击蓝色按钮创建新条件，条件之间是“和”的关系，全部满足才算数。<br><br>"+
+       "点小丑图打开图鉴挑选，旁边的数字是 <b>它最晚要在第几底注出现</b>，填 3 就是『前三个底注内必须拿到』。<br><br>"+
+       "点击绿色的<b>「+ 或者」</b>在条件里再加一张备选：只要中了其中任意一张就算这个条件过关。<br>"+
+       "想搜『任意负片传奇』，就把五个传奇全用「或者」加进同一个条件方框。<br><br>",
+  shop:"商店每个底注会陆续摆出小丑、塔罗、星球牌，这里设定往后看几个位置。<br><br>"+
+       "<b>只搜传奇小丑（卡尼奥、帕奇欧那五个）时，填 0 最快</b>——传奇只从卡包的灵魂牌里出，商店永远不卖，算它纯属浪费。<br><br>"+
+       "填得越大搜得越慢，而且实战里翻到后面的位置要花钱重摇，不重掷不买券每底注只有6位。",
+  stop:"找到这么多个种子后自动停下。<br><br>想多攒几个就调大，只要一个能玩的就填 1。",
+  packs:"勾上以后，卡包里开出的小丑也算数。<br><br><b>搜传奇必须勾着</b>，因为灵魂牌只出现在奇术包和幻灵包里。",
+  from:"种子是按顺序一个个试过去的。<br><br>留空就随机挑个起点开始数；填一个种子则从它往后接着数。"+
+       "上次搜到一半关掉了，把下面显示的“数到这里了”填进来就能续上。"
+};
+function showTip(k){
+  if(!TIPS[k])return;
+  $("tiptext").innerHTML=TIPS[k];
+  $("tip").style.display="block";
+}
+document.addEventListener("click",e=>{
+  const b=e.target.closest(".i");
+  if(b){e.preventDefault();e.stopPropagation();showTip(b.dataset.tip);}
+},true);
+$("tipclose").onclick=()=>{$("tip").style.display="none";};
+$("tip").addEventListener("click",e=>{if(e.target.id==="tip")$("tip").style.display="none";});
+
+/* ===== 点种子复制 ===== */
+document.addEventListener("click",e=>{
+  const s=e.target.closest(".seed");
+  if(!s)return;
+  const t=s.textContent.trim();
+  if(navigator.clipboard)navigator.clipboard.writeText(t);
+  const old=s.textContent;
+  s.textContent="已复制";
+  setTimeout(()=>{s.textContent=old;},700);
+});
+
+
+/* ===== 复制 / 导出 ===== */
+let allHits=[];
+function copyText(t,btn){
+  const done=()=>{ if(btn){const o=btn.textContent;btn.textContent="已复制";setTimeout(()=>btn.textContent=o,800);} };
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(t).then(done,()=>fallback(t,done));
+  } else fallback(t,done);
+}
+function fallback(t,cb){
+  const ta=document.createElement("textarea");
+  ta.value=t;ta.style.position="fixed";ta.style.opacity="0";
+  document.body.appendChild(ta);ta.select();
+  try{document.execCommand("copy");cb();}catch(e){}
+  document.body.removeChild(ta);
+}
+document.addEventListener("click",e=>{
+  const cp=e.target.closest(".cp");
+  if(cp){
+    const seed=cp.parentElement.querySelector(".seed").textContent.trim();
+    copyText(seed,cp);
+    return;
+  }
+  const sd=e.target.closest(".seed");
+  if(sd&&!e.target.closest(".cp")){
+    const t=sd.textContent.trim();
+    copyText(t);
+    const o=sd.textContent;sd.textContent="已复制";
+    setTimeout(()=>{sd.textContent=o;},700);
+  }
+});
+
+/* ===== 概率实测 ===== */
+function describeGroups(groups){
+  return groups.map(g=>{
+    const names=g.map(w=>jname(w.name)+(w.ed?"("+w.ed+")":"")).join(" 或 ");
+    const a=Math.max(...g.map(w=>w.ante));
+    return names+" ≤底注"+a;
+  }).join(" ＋ ");
+}
+function readGroups(){
+  return [...document.querySelectorAll("#wants .wantgroup")].map(grp=>
+    [...grp.querySelectorAll(".want")].map(d=>({
+      name:d.querySelector(".j").value,
+      ed:d.querySelector(".e").value,
+      ante:parseInt(d.querySelector(".ant").value,10)||8
+    }))
+  ).filter(g=>g.length);
+}
+/* ===== 概率粗估（公式，瞬时） ===== */
+const ED_P={"":1,"负片":0.003,"多彩":0.003,"全息":0.014,"闪箔":0.02};
+const RAR_P={1:0.70,2:0.25,3:0.05};
+const PACK_TOTAL=22.42;
+function packP(name){
+  const it=PACKS.find(x=>x[0]===name);
+  return it?it[1]/PACK_TOTAL:0;
+}
+/* 一张小丑在某个底注里出现的期望次数 */
+function lambdaPerAnte(w,ante,slots,withPacks){
+  const rar=RAR_OF[w.name];
+  const edp=ED_P[w.ed]||1;
+  let lam=0;
+  if(rar===4){
+    /* 传奇只从奇术包 / 幻灵包的灵魂牌来 */
+    if(!withPacks)return 0;
+    const nPacks=(ante===1)?4:6;
+    const arc=[["Arcana Pack",3],["Jumbo Arcana Pack",5],["Mega Arcana Pack",5]];
+    const spe=[["Spectral Pack",2],["Jumbo Spectral Pack",4],["Mega Spectral Pack",4]];
+    let soulPerPack=0;
+    for(const [n,sz] of arc.concat(spe))
+      soulPerPack += packP(n)*(1-Math.pow(1-0.003,sz));
+    lam = nPacks*soulPerPack*(1/5)*edp;
+  }else{
+    const pool=POOLS[rar].length;
+    /* 商店 */
+    lam += slots*(20/28)*RAR_P[rar]*(1/pool)*edp;
+    /* 小丑包 */
+    if(withPacks){
+      const nPacks=(ante===1)?4:6;
+      let cards=0;
+      for(const [n,sz] of [["Buffoon Pack",2],["Jumbo Buffoon Pack",4],["Mega Buffoon Pack",4]])
+        cards += packP(n)*sz;
+      if(ante<=2)cards+=2/nPacks;   /* 开局那个必定的小丑包 */
+      lam += nPacks*cards*RAR_P[rar]*(1/pool)*edp;
+    }
+  }
+  return lam;
+}
+function groupLambda(grp,slots,withPacks){
+  let lam=0;
+  for(const w of grp)
+    for(let a=1;a<=w.ante;a++)
+      lam += lambdaPerAnte(w,a,slots,withPacks);
+  return lam;
+}
+function sameGroup(a,b){
+  if(a.length!==b.length)return false;
+  const key=g=>g.map(w=>w.name+"|"+w.ed+"|"+w.ante).sort().join(",");
+  return key(a)===key(b);
+}
+function estimate(groups,slots,withPacks){
+  /* 把完全相同的组合并，用泊松算"至少 k 个" */
+  const buckets=[];
+  for(const g of groups){
+    const b=buckets.find(x=>sameGroup(x.grp,g));
+    if(b)b.k++; else buckets.push({grp:g,k:1});
+  }
+  let p=1;
+  for(const b of buckets){
+    const lam=groupLambda(b.grp,slots,withPacks);
+    if(lam<=0)return 0;
+    /* P(至少 k 次)，泊松 */
+    let tail=1,term=Math.exp(-lam);
+    for(let j=0;j<b.k;j++){ tail-=term; term=term*lam/(j+1); }
+    p *= Math.max(tail,0);
+  }
+  return p;
+}
+
+$("est").onclick=()=>{
+  const groups=readGroups();
+  if(!groups.length)return;
+  const slots=parseInt($("slots").value,10)||0;
+  const withPacks=$("packs").checked;
+  const box=$("odds");
+  box.style.display="block";
+
+  const p=estimate(groups,slots,withPacks);
+  const cores=Math.min(navigator.hardwareConcurrency||4,8);
+  const speed=14000*cores*0.85;   /* 每核大概 1.4 万/秒 */
+
+  let lv,lvName,txt;
+  if(p<=0||!isFinite(p)){
+    box.innerHTML='<span class="lv lv-hard">搜不到</span>这个条件不可能满足<br>'+
+      '<span style="color:var(--dim)">传奇小丑只从卡包的灵魂牌出，记得勾上「连卡包里的一起搜」。</span>';
+    return;
+  }
+  const one=Math.round(1/p);
+  const sec=one/speed;
+  if(sec<5){lv="lv-easy";lvName="轻松";}
+  else if(sec<300){lv="lv-mid";lvName="要等等";}
+  else {lv="lv-hard";lvName="硬骨头";}
+
+  txt="大约每 <span class=\"big\">"+one.toLocaleString()+"</span> 个种子出一个<br>"+
+      "按这台设备估计 <b>"+fmtTime(sec)+"</b> 出一个";
+  if(sec>1800)txt+='<br><span style="color:var(--dim)">太久的话，可以放宽底注，或用「+ 或者」多加几张备选。</span>';
+
+  box.innerHTML='<span class="lv '+lv+'">'+lvName+'</span>'+describeGroups(groups)+
+    '<div style="margin-top:8px">'+txt+'</div>'+
+    '<div style="margin-top:6px;color:var(--dim);font-size:13px">粗略估算，实际可能有出入</div>';
+};
+$("copyall").onclick=()=>{
+  if(!allHits.length)return;
+  const t=allHits.map(h=>
+    h.seed+"\n"+h.where.map(g=>"  "+jname(g.name)+(g.edition?"["+g.edition+"]":"")+
+      (g.soul?" ✦":"")+" — 底注"+g.ante+" "+g.from).join("\n")
+  ).join("\n\n");
+  copyText(t,$("copyall"));
+};
+$("clearall").onclick=()=>{
+  allHits=[];$("hits").innerHTML="还没开始。";$("tools").style.display="none";
+};
+
 $("pclose").onclick=closePicker;
 $("psearch").oninput=e=>filterPicker(e.target.value);
 
@@ -1038,5 +1416,7 @@ $("peek").onclick=()=>{
   $("pv").innerHTML=html;
 };
 </script>
+<script data-goatcounter="https://sillyfish.goatcounter.com/count"
+        async src="//gc.zgo.at/count.js"></script>
 </body>
 </html>
