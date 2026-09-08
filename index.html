@@ -1380,13 +1380,12 @@ $("est").onclick=()=>{
   else if(sec<300){lv="lv-mid";lvName="要等等";}
   else {lv="lv-hard";lvName="硬骨头";}
 
-  txt="大约每 <span class=\"big\">"+one.toLocaleString()+"</span> 个种子出一个<br>"+
-      "按这台设备估计 <b>"+fmtTime(sec)+"</b> 出一个";
-  if(sec>1800)txt+='<br><span style="color:var(--dim)">太久的话，可以放宽底注，或用「+ 或者」多加几张备选。</span>';
+  txt="大约每 <span class=\"big\">"+one.toLocaleString()+"</span> 个种子出一个<br>";
+  if(sec>1800)txt+='<br><span style="color:var(--dim)">太久的话，可以放宽条件，或用「+ 或者」多加几张备选。</span>';
 
   box.innerHTML='<span class="lv '+lv+'">'+lvName+'</span>'+describeGroups(groups)+
     '<div style="margin-top:8px">'+txt+'</div>'+
-    '<div style="margin-top:6px;color:var(--dim);font-size:13px">粗略估算，实际可能有出入</div>';
+    '<div style="margin-top:6px;color:var(--dim);font-size:13px">粗略估算，实际用时一般远小于估计</div>';
 };
 $("copyall").onclick=()=>{
   if(!allHits.length)return;
