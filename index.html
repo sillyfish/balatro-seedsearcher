@@ -252,9 +252,11 @@ Run.prototype.choice=function(key,items,locked){
 
 /* 包的种类 → 里面几张、能选几张 */
 function packInfo(p){
-  if(p.startsWith("Mega "))  return {kind:p.slice(5), size:p.includes("Buffoon")?4:5, pick:2};
-  if(p.startsWith("Jumbo ")) return {kind:p.slice(6), size:p.includes("Buffoon")?4:5, pick:1};
-  return {kind:p, size:p.includes("Buffoon")?2:3, pick:1};
+  /* 小丑包和幻灵包共用小尺寸：普通 2 张、大 4 张、超大 4 张选 2 */
+  const small=p.includes("Buffoon")||p.includes("Spectral");
+  if(p.startsWith("Mega "))  return {kind:p.slice(5), size:small?4:5, pick:2};
+  if(p.startsWith("Jumbo ")) return {kind:p.slice(6), size:small?4:5, pick:1};
+  return {kind:p, size:small?2:3, pick:1};
 }
 
 const PACK_CN={"Arcana Pack":"奇术包","Celestial Pack":"天体包","Standard Pack":"标准包",
@@ -598,9 +600,11 @@ Run.prototype.choice=function(key,items,locked){
 
 /* 包的种类 → 里面几张、能选几张 */
 function packInfo(p){
-  if(p.startsWith("Mega "))  return {kind:p.slice(5), size:p.includes("Buffoon")?4:5, pick:2};
-  if(p.startsWith("Jumbo ")) return {kind:p.slice(6), size:p.includes("Buffoon")?4:5, pick:1};
-  return {kind:p, size:p.includes("Buffoon")?2:3, pick:1};
+  /* 小丑包和幻灵包共用小尺寸：普通 2 张、大 4 张、超大 4 张选 2 */
+  const small=p.includes("Buffoon")||p.includes("Spectral");
+  if(p.startsWith("Mega "))  return {kind:p.slice(5), size:small?4:5, pick:2};
+  if(p.startsWith("Jumbo ")) return {kind:p.slice(6), size:small?4:5, pick:1};
+  return {kind:p, size:small?2:3, pick:1};
 }
 
 const PACK_CN={"Arcana Pack":"奇术包","Celestial Pack":"天体包","Standard Pack":"标准包",
