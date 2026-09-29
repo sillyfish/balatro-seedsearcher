@@ -303,47 +303,64 @@ function pseudohash(str){
     num=((1.1239285023/num)*str.charCodeAt(i-1)*Math.PI+Math.PI*i)%1;
   return num;
 }
-const round13=x=>parseFloat(x.toFixed(13));
+/* 与 parseFloat(x.toFixed(13)) 逐位相同：x*1e13 的误差不到 0.001，
+   只有小数部分贴着 .5 时取整方向才可能不同，那时退回字符串版 */
+function round13(x){
+  const y=x*1e13, f=y-Math.floor(y);
+  if(f>0.49&&f<0.51) return parseFloat(x.toFixed(13));
+  return Math.round(y)/1e13;
+}
 const _b=new ArrayBuffer(8),_f=new Float64Array(_b),_u=new Uint32Array(_b);
 
 class LuaRandom{
-  constructor(){this.hi=new Uint32Array(4);this.lo=new Uint32Array(4);}
-  gen(i,k,q,s){
-    let zh=this.hi[i],zl=this.lo[i];
-    /* a = ((z<<q) ^ z) >> (k-s) */
-    let ah,al;
-    if(q>=32){ah=zl<<(q-32);al=0;}
-    else{ah=(zh<<q)|(zl>>>(32-q));al=zl<<q;}
-    ah^=zh;al^=zl;
-    const n=k-s;
-    if(n>=32){al=ah>>>(n-32);ah=0;}
-    else if(n>0){al=(al>>>n)|(ah<<(32-n));ah=ah>>>n;}
-    /* b = (z & (M64<<(64-k))) << s */
-    const m=64-k;                       /* 1..17，恒 <32 */
-    let bh=zh,bl=zl&((0xFFFFFFFF<<m)>>>0);
-    if(s>=32){bh=bl<<(s-32);bl=0;}
-    else{bh=(bh<<s)|(bl>>>(32-s));bl=bl<<s;}
-    const rh=(ah^bh)>>>0,rl=(al^bl)>>>0;
-    this.hi[i]=rh;this.lo[i]=rl;
-    return [rh,rl];
-  }
+  constructor(){this.h0=this.l0=this.h1=this.l1=this.h2=this.l2=this.h3=this.l3=0;this._h=this._l=0;}
+  /* 四路 Tausworthe 按常数展开，64 位拆成 hi/lo 两个 32 位 */
   step(){
-    let h=0,l=0,r;
-    r=this.gen(0,63,31,18);h^=r[0];l^=r[1];
-    r=this.gen(1,58,19,28);h^=r[0];l^=r[1];
-    r=this.gen(2,55,24, 7);h^=r[0];l^=r[1];
-    r=this.gen(3,47,21, 8);h^=r[0];l^=r[1];
+    let zh,zl,ah,al,bh,bl,h,l;
+    /* 第 0 路：k=63 q=31 s=18 */
+    zh=this.h0;zl=this.l0;
+    ah=((zh<<31)|(zl>>>1))^zh;al=(zl<<31)^zl;
+    al=ah>>>13;ah=0;
+    bl=zl&4294967294;
+    bh=(zh<<18)|(bl>>>14);bl=bl<<18;
+    zh=(ah^bh)>>>0;zl=(al^bl)>>>0;this.h0=zh;this.l0=zl;
+    h=zh;l=zl;
+    /* 第 1 路：k=58 q=19 s=28 */
+    zh=this.h1;zl=this.l1;
+    ah=((zh<<19)|(zl>>>13))^zh;al=(zl<<19)^zl;
+    al=(al>>>30)|(ah<<2);ah=ah>>>30;
+    bl=zl&4294967232;
+    bh=(zh<<28)|(bl>>>4);bl=bl<<28;
+    zh=(ah^bh)>>>0;zl=(al^bl)>>>0;this.h1=zh;this.l1=zl;
+    h^=zh;l^=zl;
+    /* 第 2 路：k=55 q=24 s=7 */
+    zh=this.h2;zl=this.l2;
+    ah=((zh<<24)|(zl>>>8))^zh;al=(zl<<24)^zl;
+    al=ah>>>16;ah=0;
+    bl=zl&4294966784;
+    bh=(zh<<7)|(bl>>>25);bl=bl<<7;
+    zh=(ah^bh)>>>0;zl=(al^bl)>>>0;this.h2=zh;this.l2=zl;
+    h^=zh;l^=zl;
+    /* 第 3 路：k=47 q=21 s=8 */
+    zh=this.h3;zl=this.l3;
+    ah=((zh<<21)|(zl>>>11))^zh;al=(zl<<21)^zl;
+    al=ah>>>7;ah=0;
+    bl=zl&4294836224;
+    bh=(zh<<8)|(bl>>>24);bl=bl<<8;
+    zh=(ah^bh)>>>0;zl=(al^bl)>>>0;this.h3=zh;this.l3=zl;
+    h^=zh;l^=zl;
     this._h=h>>>0;this._l=l>>>0;
   }
   seed(d){
-    let r=0x11090601;
-    for(let i=0;i<4;i++){
-      const m=(1<<(r&255))>>>0;r>>>=8;
-      d=d*3.14159265358979323846+2.7182818284590452354;
-      _f[0]=d;let lo=_u[0];const hi=_u[1];
-      if(lo<m)lo=(lo+m)>>>0;
-      this.hi[i]=hi;this.lo[i]=lo;
-    }
+    /* 原来的循环展开：r=0x11090601 每轮取最低字节当位移 */
+    d=d*3.14159265358979323846+2.7182818284590452354;
+    _f[0]=d;this.h0=_u[1];this.l0=_u[0];if(this.l0<2)this.l0=(this.l0+2)>>>0;
+    d=d*3.14159265358979323846+2.7182818284590452354;
+    _f[0]=d;this.h1=_u[1];this.l1=_u[0];if(this.l1<64)this.l1=(this.l1+64)>>>0;
+    d=d*3.14159265358979323846+2.7182818284590452354;
+    _f[0]=d;this.h2=_u[1];this.l2=_u[0];if(this.l2<512)this.l2=(this.l2+512)>>>0;
+    d=d*3.14159265358979323846+2.7182818284590452354;
+    _f[0]=d;this.h3=_u[1];this.l3=_u[0];if(this.l3<131072)this.l3=(this.l3+131072)>>>0;
     for(let i=0;i<10;i++)this.step();
   }
   double(){
@@ -354,21 +371,55 @@ class LuaRandom{
   }
   int(n){return Math.floor(this.double()*n)+1;}
 }
+/* key 跟种子无关：每个 key 发一个固定编号，随机状态按编号存进数组。
+   同一个 key 不管走字符串还是走编号，读写的都是同一格，结果不变 */
+const KEY_ID=new Map(),KEY_STR=[],KEY_RES=[];
+function kid(str){
+  let id=KEY_ID.get(str);
+  if(id===undefined){id=KEY_STR.length;KEY_ID.set(str,id);KEY_STR.push(str);KEY_RES.push(null);}
+  return id;
+}
+function resampleId(id,n){
+  let r=KEY_RES[id];if(!r)r=KEY_RES[id]=[];
+  let x=r[n];if(x===undefined)x=r[n]=kid(KEY_STR[id]+"_resample"+n);
+  return x;
+}
+
 class Run{
-  constructor(s){this.rng=new LuaRandom();this.state=Object.create(null);this.reset(s);}
-  reset(s){
-    this.seedStr=s;this.hashed=pseudohash(s);
-    for(const k in this.state)delete this.state[k];
-    return this;
+  constructor(s){
+    this.rng=new LuaRandom();
+    this.sv=new Float64Array(256);this.sg=new Float64Array(256);   /* 状态值 / 属于第几次 reset */
+    this.hv=new Float64Array(64);this.hg=new Float64Array(64);     /* 种子那段哈希，按 key 长度缓存 */
+    this.g=0;this.reset(s);
   }
-  pseudoseed(key){
-    let v=this.state[key];
-    if(v===undefined)v=pseudohash(key+this.seedStr);
+  reset(s){this.seedStr=s;this.hashed=pseudohash(s);this.g++;return this;}
+  /* pseudohash(key+seed) 从末尾往前算，所以种子那几个字符先算，
+     中间结果只跟 key 的长度有关，同一个种子里可以共用 */
+  seedPart(klen){
+    if(klen>=this.hv.length){const n=klen*2+1;const a=new Float64Array(n),b=new Float64Array(n);
+      a.set(this.hv);b.set(this.hg);this.hv=a;this.hg=b;}
+    if(this.hg[klen]===this.g)return this.hv[klen];
+    const s=this.seedStr,L=klen+s.length;let num=1;
+    for(let i=L;i>klen;i--)num=((1.1239285023/num)*s.charCodeAt(i-klen-1)*Math.PI+Math.PI*i)%1;
+    this.hv[klen]=num;this.hg[klen]=this.g;return num;
+  }
+  pseudoseedId(id){
+    if(id>=this.sv.length){let n=this.sv.length;while(n<=id)n*=2;
+      const a=new Float64Array(n),b=new Float64Array(n);a.set(this.sv);b.set(this.sg);this.sv=a;this.sg=b;}
+    let v;
+    if(this.sg[id]===this.g)v=this.sv[id];
+    else{
+      const k=KEY_STR[id];let num=this.seedPart(k.length);
+      for(let i=k.length;i>=1;i--)num=((1.1239285023/num)*k.charCodeAt(i-1)*Math.PI+Math.PI*i)%1;
+      v=num;
+    }
     v=Math.abs(round13((2.134453429141+v*1.72431234)%1));
-    this.state[key]=v;
+    this.sv[id]=v;this.sg[id]=this.g;
     return (v+this.hashed)/2;
   }
-  rand(key){this.rng.seed(this.pseudoseed(key));return this.rng.double();}
+  pseudoseed(key){return this.pseudoseedId(kid(key));}
+  randId(id){this.rng.seed(this.pseudoseedId(id));return this.rng.double();}
+  rand(key){return this.randId(kid(key));}
   pick(key,list){this.rng.seed(this.pseudoseed(key));return list[this.rng.int(list.length)-1];}
 }
 
@@ -412,8 +463,9 @@ const PACKS=[["RETRY",22.42],["Arcana Pack",4],["Jumbo Arcana Pack",2],["Mega Ar
 ["Spectral Pack",0.6],["Jumbo Spectral Pack",0.3],["Mega Spectral Pack",0.07]];
 
 /* 加权抽签：拿第一项的权重当总量，往后累加 */
-Run.prototype.weighted=function(key,items){
-  this.rng.seed(this.pseudoseed(key));
+Run.prototype.weighted=function(key,items){return this.weightedId(kid(key),items);};
+Run.prototype.weightedId=function(id,items){
+  this.rng.seed(this.pseudoseedId(id));
   const poll=this.rng.double()*items[0][1];
   let idx=1,w=0;
   while(w<poll){w+=items[idx][1];idx++;}
@@ -421,13 +473,14 @@ Run.prototype.weighted=function(key,items){
 };
 
 /* 带锁的抽取：抽到锁上的就 _resample2、_resample3 重抽 */
-Run.prototype.choice=function(key,items,locked){
-  this.rng.seed(this.pseudoseed(key));
+Run.prototype.choice=function(key,items,locked){return this.choiceId(kid(key),items,locked);};
+Run.prototype.choiceId=function(id,items,locked){
+  this.rng.seed(this.pseudoseedId(id));
   let it=items[this.rng.int(items.length)-1];
   if(it!=="RETRY"&&!(locked&&locked.has(it)))return it;
   let n=2;
   while(n<=1000){
-    this.rng.seed(this.pseudoseed(key+"_resample"+n));
+    this.rng.seed(this.pseudoseedId(resampleId(id,n)));
     it=items[this.rng.int(items.length)-1];
     n++;
     if(it!=="RETRY"&&!(locked&&locked.has(it)))return it;
@@ -436,7 +489,9 @@ Run.prototype.choice=function(key,items,locked){
 };
 
 /* 包的种类 → 里面几张、能选几张 */
-function packInfo(p){
+const _PINFO=Object.create(null);
+function packInfo(p){return _PINFO[p]||(_PINFO[p]=packInfo0(p));}
+function packInfo0(p){
   /* 小丑包和幻灵包共用小尺寸：普通 2 张、大 4 张、超大 4 张选 2 */
   const small=p.includes("Buffoon")||p.includes("Spectral");
   if(p.startsWith("Mega "))  return {kind:p.slice(5), size:small?4:5, pick:2};
@@ -565,73 +620,114 @@ function makePlan(groups,slots,maxAnte,withPacks){
     const maxA=Math.max(...grp.map(w=>w.ante));
     for(const w of grp) deadline[maxA]=(deadline[maxA]||[]);
   }
-  return {needRar,needLeg,groups,deadline,slots,maxAnte,withPacks};
+  const gmax=groups.map(g=>Math.max(...g.map(w=>w.ante)));
+  /* 整组都是传奇的，可以在第一遍就判 */
+  const legGroups=[];let legMax=0;
+  groups.forEach((g,i)=>{
+    if(g.every(w=>RAR_OF[w.name]===4))legGroups.push(i);
+    for(const w of g) if(RAR_OF[w.name]===4) legMax=Math.max(legMax,w.ante);
+  });
+  return {needRar,needLeg,groups,gmax,legGroups,legMax,deadline,slots,maxAnte,withPacks};
 }
 
-/* 返回 true = 这个种子有戏，值得完整算一遍 */
+/* 每个底注用到的 key 编号，第一次用到时登记 */
+const _FK=[];
+function fk(a){
+  let k=_FK[a];if(k)return k;
+  return _FK[a]={cdt:kid("cdt"+a),rSho:kid("rarity"+a+"sho"),rBuf:kid("rarity"+a+"buf"),
+    jSho:[0,kid("Joker1sho"+a),kid("Joker2sho"+a),kid("Joker3sho"+a)],
+    jBuf:[0,kid("Joker1buf"+a),kid("Joker2buf"+a),kid("Joker3buf"+a)],
+    pack:kid("shop_pack"+a),sT:kid("soul_Tarot"+a),sS:kid("soul_Spectral"+a)};
+}
+const K_J4=kid("Joker4");
+
+/* 返回 true = 这个种子有戏，值得完整算一遍。
+   分两遍：先只看灵魂牌（便宜，而且大多数种子在这里就被淘汰），再看普通到稀有小丑。
+   每条随机流只认自己的 key，不同 key 谁先算谁后算不影响结果；
+   两遍都要用的卡包种类只掷一次，存起来给第二遍用。 */
+const _PK=[];
 function fastScan(seed,plan){
   const run=_shared.reset(seed);
   const found=new Map();   /* 名字 → 最早出现的底注 */
-  const mark=(n,a)=>{ if(!found.has(n))found.set(n,a); };
-  const st={};
-  const {needRar,needLeg,slots,maxAnte,withPacks}=plan;
-
-  for(let a=1;a<=maxAnte;a++){
-    for(let s=1;s<=slots;s++){
-      const t=run.rand("cdt"+a)*28;
-      if(t<20){                                   /* 小丑位 */
-        if(needRar.size){                         /* 只要传奇的话连稀有度都不用掷 */
-          const r=run.rand("rarity"+a+"sho");
-          const rar=r>0.95?3:(r>0.7?2:1);
-          if(needRar.has(rar))
-            mark(run.choice("Joker"+rar+"sho"+a,POOLS[rar],GATED_JOKERS),a);
-        }
-      }   /* 商店的塔罗/星球不会翻灵魂牌 */
+  const {needRar,needLeg,slots,maxAnte,withPacks,groups,gmax,legGroups,legMax}=plan;
+  let packDone=0;
+  const packsOf=a=>{       /* 第 a 底注的卡包，按底注顺序掷，掷过就记住 */
+    while(packDone<a){
+      const b=++packDone,K=fk(b),arr=_PK[b]||(_PK[b]=[]);arr.length=0;
+      for(let i=0,np=(b===1?4:6);i<np;i++)
+        arr.push(b===1&&i===0?"Buffoon Pack":run.weightedId(K.pack,PACKS));
     }
+    return _PK[a];
+  };
+  const groupOk=g=>{
+    for(const w of groups[g]){const fa=found.get(w.name);if(fa!==undefined&&fa<=w.ante)return true;}
+    return false;
+  };
 
-    if(withPacks){
-      for(let i=0,n=(a===1?4:6);i<n;i++){
-        let p;
-        if(a<=2&&!st.firstPack){st.firstPack=true;p="Buffoon Pack";}
-        else p=run.weighted("shop_pack"+a,PACKS);
+  /* 第一遍：灵魂牌 → 传奇 */
+  if(needLeg&&withPacks){
+    for(let a=1;a<=legMax;a++){
+      const K=fk(a);
+      for(const p of packsOf(a)){
         const info=packInfo(p);
-        if(info.kind==="Buffoon Pack"){
-          if(!needRar.size)continue;              /* 不要普通小丑就整包跳过 */
-          const locked=new Set(GATED_JOKERS);
-          for(let k=0;k<info.size;k++){
-            const r=run.rand("rarity"+a+"buf");
-            const rar=r>0.95?3:(r>0.7?2:1);
-            const n=run.choice("Joker"+rar+"buf"+a,POOLS[rar],locked);
-            locked.add(n);
-            if(needRar.has(rar))mark(n,a);
-          }
-        } else if(info.kind==="Arcana Pack"&&needLeg){
-          let done=false;
-          for(let k=0;k<info.size&&!done;k++)
-            if(run.rand("soul_Tarot"+a)>0.997){
-              mark(run.choice("Joker4",POOLS[4]),a);done=true;
+        if(info.kind==="Arcana Pack"){
+          for(let k=0;k<info.size;k++)
+            if(run.randId(K.sT)>0.997){
+              const n=run.choiceId(K_J4,POOLS[4]);
+              if(!found.has(n))found.set(n,a);
+              break;
             }
-        } else if(info.kind==="Spectral Pack"&&needLeg){
+        } else if(info.kind==="Spectral Pack"){
           let sd=false,hd=false;
           for(let k=0;k<info.size;k++){
-            const isSoul=!sd&&run.rand("soul_Spectral"+a)>0.997;
-            const isHole=!hd&&run.rand("soul_Spectral"+a)>0.997;
+            const isSoul=!sd&&run.randId(K.sS)>0.997;
+            const isHole=!hd&&run.randId(K.sS)>0.997;
             if(isHole)hd=true;
-            else if(isSoul){sd=true;mark(run.choice("Joker4",POOLS[4]),a);}
+            else if(isSoul){sd=true;const n=run.choiceId(K_J4,POOLS[4]);if(!found.has(n))found.set(n,a);}
+          }
+        }
+      }
+      /* 纯传奇的组过了期限还没中，直接扔 */
+      for(const g of legGroups) if(a>=gmax[g]&&!groupOk(g)) return false;
+    }
+  }
+  for(const g of legGroups) if(!groupOk(g)) return false;
+
+  /* 第二遍：商店和小丑包里的普通/罕见/稀有 */
+  for(let a=1;a<=maxAnte;a++){
+    if(needRar.size){
+      const K=fk(a);
+      for(let s=1;s<=slots;s++){
+        const t=run.randId(K.cdt)*28;
+        if(t<20){
+          const r=run.randId(K.rSho);
+          const rar=r>0.95?3:(r>0.7?2:1);
+          if(needRar.has(rar)){
+            const n=run.choiceId(K.jSho[rar],POOLS[rar],GATED_JOKERS);
+            if(!found.has(n))found.set(n,a);
+          }
+        }                                         /* 商店的塔罗/星球不会翻灵魂牌 */
+      }
+      if(withPacks){
+        let locked=null;
+        for(const p of packsOf(a)){
+          const info=packInfo(p);
+          if(info.kind!=="Buffoon Pack")continue;
+          locked=new Set(GATED_JOKERS);
+          for(let k=0;k<info.size;k++){
+            const r=run.randId(K.rBuf);
+            const rar=r>0.95?3:(r>0.7?2:1);
+            const n=run.choiceId(K.jBuf[rar],POOLS[rar],locked);
+            locked.add(n);
+            if(needRar.has(rar)&&!found.has(n))found.set(n,a);
           }
         }
       }
     }
-
     /* 提前放弃：某一组过了它的最晚底注还一个都没中 */
-    for(const grp of plan.groups){
-      const maxA=Math.max(...grp.map(w=>w.ante));
-      if(a>=maxA && !grp.some(w=>found.has(w.name)&&found.get(w.name)<=w.ante))
-        return false;
-    }
+    for(let g=0;g<groups.length;g++) if(a>=gmax[g]&&!groupOk(g)) return false;
   }
-  for(const grp of plan.groups)
-    if(!grp.some(w=>found.has(w.name)&&found.get(w.name)<=w.ante)) return false;
+  for(let g=0;g<groups.length;g++) if(!groupOk(g)) return false;
   return true;
 }
 
@@ -657,47 +753,64 @@ function pseudohash(str){
     num=((1.1239285023/num)*str.charCodeAt(i-1)*Math.PI+Math.PI*i)%1;
   return num;
 }
-const round13=x=>parseFloat(x.toFixed(13));
+/* 与 parseFloat(x.toFixed(13)) 逐位相同：x*1e13 的误差不到 0.001，
+   只有小数部分贴着 .5 时取整方向才可能不同，那时退回字符串版 */
+function round13(x){
+  const y=x*1e13, f=y-Math.floor(y);
+  if(f>0.49&&f<0.51) return parseFloat(x.toFixed(13));
+  return Math.round(y)/1e13;
+}
 const _b=new ArrayBuffer(8),_f=new Float64Array(_b),_u=new Uint32Array(_b);
 
 class LuaRandom{
-  constructor(){this.hi=new Uint32Array(4);this.lo=new Uint32Array(4);}
-  gen(i,k,q,s){
-    let zh=this.hi[i],zl=this.lo[i];
-    /* a = ((z<<q) ^ z) >> (k-s) */
-    let ah,al;
-    if(q>=32){ah=zl<<(q-32);al=0;}
-    else{ah=(zh<<q)|(zl>>>(32-q));al=zl<<q;}
-    ah^=zh;al^=zl;
-    const n=k-s;
-    if(n>=32){al=ah>>>(n-32);ah=0;}
-    else if(n>0){al=(al>>>n)|(ah<<(32-n));ah=ah>>>n;}
-    /* b = (z & (M64<<(64-k))) << s */
-    const m=64-k;                       /* 1..17，恒 <32 */
-    let bh=zh,bl=zl&((0xFFFFFFFF<<m)>>>0);
-    if(s>=32){bh=bl<<(s-32);bl=0;}
-    else{bh=(bh<<s)|(bl>>>(32-s));bl=bl<<s;}
-    const rh=(ah^bh)>>>0,rl=(al^bl)>>>0;
-    this.hi[i]=rh;this.lo[i]=rl;
-    return [rh,rl];
-  }
+  constructor(){this.h0=this.l0=this.h1=this.l1=this.h2=this.l2=this.h3=this.l3=0;this._h=this._l=0;}
+  /* 四路 Tausworthe 按常数展开，64 位拆成 hi/lo 两个 32 位 */
   step(){
-    let h=0,l=0,r;
-    r=this.gen(0,63,31,18);h^=r[0];l^=r[1];
-    r=this.gen(1,58,19,28);h^=r[0];l^=r[1];
-    r=this.gen(2,55,24, 7);h^=r[0];l^=r[1];
-    r=this.gen(3,47,21, 8);h^=r[0];l^=r[1];
+    let zh,zl,ah,al,bh,bl,h,l;
+    /* 第 0 路：k=63 q=31 s=18 */
+    zh=this.h0;zl=this.l0;
+    ah=((zh<<31)|(zl>>>1))^zh;al=(zl<<31)^zl;
+    al=ah>>>13;ah=0;
+    bl=zl&4294967294;
+    bh=(zh<<18)|(bl>>>14);bl=bl<<18;
+    zh=(ah^bh)>>>0;zl=(al^bl)>>>0;this.h0=zh;this.l0=zl;
+    h=zh;l=zl;
+    /* 第 1 路：k=58 q=19 s=28 */
+    zh=this.h1;zl=this.l1;
+    ah=((zh<<19)|(zl>>>13))^zh;al=(zl<<19)^zl;
+    al=(al>>>30)|(ah<<2);ah=ah>>>30;
+    bl=zl&4294967232;
+    bh=(zh<<28)|(bl>>>4);bl=bl<<28;
+    zh=(ah^bh)>>>0;zl=(al^bl)>>>0;this.h1=zh;this.l1=zl;
+    h^=zh;l^=zl;
+    /* 第 2 路：k=55 q=24 s=7 */
+    zh=this.h2;zl=this.l2;
+    ah=((zh<<24)|(zl>>>8))^zh;al=(zl<<24)^zl;
+    al=ah>>>16;ah=0;
+    bl=zl&4294966784;
+    bh=(zh<<7)|(bl>>>25);bl=bl<<7;
+    zh=(ah^bh)>>>0;zl=(al^bl)>>>0;this.h2=zh;this.l2=zl;
+    h^=zh;l^=zl;
+    /* 第 3 路：k=47 q=21 s=8 */
+    zh=this.h3;zl=this.l3;
+    ah=((zh<<21)|(zl>>>11))^zh;al=(zl<<21)^zl;
+    al=ah>>>7;ah=0;
+    bl=zl&4294836224;
+    bh=(zh<<8)|(bl>>>24);bl=bl<<8;
+    zh=(ah^bh)>>>0;zl=(al^bl)>>>0;this.h3=zh;this.l3=zl;
+    h^=zh;l^=zl;
     this._h=h>>>0;this._l=l>>>0;
   }
   seed(d){
-    let r=0x11090601;
-    for(let i=0;i<4;i++){
-      const m=(1<<(r&255))>>>0;r>>>=8;
-      d=d*3.14159265358979323846+2.7182818284590452354;
-      _f[0]=d;let lo=_u[0];const hi=_u[1];
-      if(lo<m)lo=(lo+m)>>>0;
-      this.hi[i]=hi;this.lo[i]=lo;
-    }
+    /* 原来的循环展开：r=0x11090601 每轮取最低字节当位移 */
+    d=d*3.14159265358979323846+2.7182818284590452354;
+    _f[0]=d;this.h0=_u[1];this.l0=_u[0];if(this.l0<2)this.l0=(this.l0+2)>>>0;
+    d=d*3.14159265358979323846+2.7182818284590452354;
+    _f[0]=d;this.h1=_u[1];this.l1=_u[0];if(this.l1<64)this.l1=(this.l1+64)>>>0;
+    d=d*3.14159265358979323846+2.7182818284590452354;
+    _f[0]=d;this.h2=_u[1];this.l2=_u[0];if(this.l2<512)this.l2=(this.l2+512)>>>0;
+    d=d*3.14159265358979323846+2.7182818284590452354;
+    _f[0]=d;this.h3=_u[1];this.l3=_u[0];if(this.l3<131072)this.l3=(this.l3+131072)>>>0;
     for(let i=0;i<10;i++)this.step();
   }
   double(){
@@ -708,21 +821,55 @@ class LuaRandom{
   }
   int(n){return Math.floor(this.double()*n)+1;}
 }
+/* key 跟种子无关：每个 key 发一个固定编号，随机状态按编号存进数组。
+   同一个 key 不管走字符串还是走编号，读写的都是同一格，结果不变 */
+const KEY_ID=new Map(),KEY_STR=[],KEY_RES=[];
+function kid(str){
+  let id=KEY_ID.get(str);
+  if(id===undefined){id=KEY_STR.length;KEY_ID.set(str,id);KEY_STR.push(str);KEY_RES.push(null);}
+  return id;
+}
+function resampleId(id,n){
+  let r=KEY_RES[id];if(!r)r=KEY_RES[id]=[];
+  let x=r[n];if(x===undefined)x=r[n]=kid(KEY_STR[id]+"_resample"+n);
+  return x;
+}
+
 class Run{
-  constructor(s){this.rng=new LuaRandom();this.state=Object.create(null);this.reset(s);}
-  reset(s){
-    this.seedStr=s;this.hashed=pseudohash(s);
-    for(const k in this.state)delete this.state[k];
-    return this;
+  constructor(s){
+    this.rng=new LuaRandom();
+    this.sv=new Float64Array(256);this.sg=new Float64Array(256);   /* 状态值 / 属于第几次 reset */
+    this.hv=new Float64Array(64);this.hg=new Float64Array(64);     /* 种子那段哈希，按 key 长度缓存 */
+    this.g=0;this.reset(s);
   }
-  pseudoseed(key){
-    let v=this.state[key];
-    if(v===undefined)v=pseudohash(key+this.seedStr);
+  reset(s){this.seedStr=s;this.hashed=pseudohash(s);this.g++;return this;}
+  /* pseudohash(key+seed) 从末尾往前算，所以种子那几个字符先算，
+     中间结果只跟 key 的长度有关，同一个种子里可以共用 */
+  seedPart(klen){
+    if(klen>=this.hv.length){const n=klen*2+1;const a=new Float64Array(n),b=new Float64Array(n);
+      a.set(this.hv);b.set(this.hg);this.hv=a;this.hg=b;}
+    if(this.hg[klen]===this.g)return this.hv[klen];
+    const s=this.seedStr,L=klen+s.length;let num=1;
+    for(let i=L;i>klen;i--)num=((1.1239285023/num)*s.charCodeAt(i-klen-1)*Math.PI+Math.PI*i)%1;
+    this.hv[klen]=num;this.hg[klen]=this.g;return num;
+  }
+  pseudoseedId(id){
+    if(id>=this.sv.length){let n=this.sv.length;while(n<=id)n*=2;
+      const a=new Float64Array(n),b=new Float64Array(n);a.set(this.sv);b.set(this.sg);this.sv=a;this.sg=b;}
+    let v;
+    if(this.sg[id]===this.g)v=this.sv[id];
+    else{
+      const k=KEY_STR[id];let num=this.seedPart(k.length);
+      for(let i=k.length;i>=1;i--)num=((1.1239285023/num)*k.charCodeAt(i-1)*Math.PI+Math.PI*i)%1;
+      v=num;
+    }
     v=Math.abs(round13((2.134453429141+v*1.72431234)%1));
-    this.state[key]=v;
+    this.sv[id]=v;this.sg[id]=this.g;
     return (v+this.hashed)/2;
   }
-  rand(key){this.rng.seed(this.pseudoseed(key));return this.rng.double();}
+  pseudoseed(key){return this.pseudoseedId(kid(key));}
+  randId(id){this.rng.seed(this.pseudoseedId(id));return this.rng.double();}
+  rand(key){return this.randId(kid(key));}
   pick(key,list){this.rng.seed(this.pseudoseed(key));return list[this.rng.int(list.length)-1];}
 }
 
@@ -766,8 +913,9 @@ const PACKS=[["RETRY",22.42],["Arcana Pack",4],["Jumbo Arcana Pack",2],["Mega Ar
 ["Spectral Pack",0.6],["Jumbo Spectral Pack",0.3],["Mega Spectral Pack",0.07]];
 
 /* 加权抽签：拿第一项的权重当总量，往后累加 */
-Run.prototype.weighted=function(key,items){
-  this.rng.seed(this.pseudoseed(key));
+Run.prototype.weighted=function(key,items){return this.weightedId(kid(key),items);};
+Run.prototype.weightedId=function(id,items){
+  this.rng.seed(this.pseudoseedId(id));
   const poll=this.rng.double()*items[0][1];
   let idx=1,w=0;
   while(w<poll){w+=items[idx][1];idx++;}
@@ -775,13 +923,14 @@ Run.prototype.weighted=function(key,items){
 };
 
 /* 带锁的抽取：抽到锁上的就 _resample2、_resample3 重抽 */
-Run.prototype.choice=function(key,items,locked){
-  this.rng.seed(this.pseudoseed(key));
+Run.prototype.choice=function(key,items,locked){return this.choiceId(kid(key),items,locked);};
+Run.prototype.choiceId=function(id,items,locked){
+  this.rng.seed(this.pseudoseedId(id));
   let it=items[this.rng.int(items.length)-1];
   if(it!=="RETRY"&&!(locked&&locked.has(it)))return it;
   let n=2;
   while(n<=1000){
-    this.rng.seed(this.pseudoseed(key+"_resample"+n));
+    this.rng.seed(this.pseudoseedId(resampleId(id,n)));
     it=items[this.rng.int(items.length)-1];
     n++;
     if(it!=="RETRY"&&!(locked&&locked.has(it)))return it;
@@ -790,7 +939,9 @@ Run.prototype.choice=function(key,items,locked){
 };
 
 /* 包的种类 → 里面几张、能选几张 */
-function packInfo(p){
+const _PINFO=Object.create(null);
+function packInfo(p){return _PINFO[p]||(_PINFO[p]=packInfo0(p));}
+function packInfo0(p){
   /* 小丑包和幻灵包共用小尺寸：普通 2 张、大 4 张、超大 4 张选 2 */
   const small=p.includes("Buffoon")||p.includes("Spectral");
   if(p.startsWith("Mega "))  return {kind:p.slice(5), size:small?4:5, pick:2};
@@ -919,73 +1070,114 @@ function makePlan(groups,slots,maxAnte,withPacks){
     const maxA=Math.max(...grp.map(w=>w.ante));
     for(const w of grp) deadline[maxA]=(deadline[maxA]||[]);
   }
-  return {needRar,needLeg,groups,deadline,slots,maxAnte,withPacks};
+  const gmax=groups.map(g=>Math.max(...g.map(w=>w.ante)));
+  /* 整组都是传奇的，可以在第一遍就判 */
+  const legGroups=[];let legMax=0;
+  groups.forEach((g,i)=>{
+    if(g.every(w=>RAR_OF[w.name]===4))legGroups.push(i);
+    for(const w of g) if(RAR_OF[w.name]===4) legMax=Math.max(legMax,w.ante);
+  });
+  return {needRar,needLeg,groups,gmax,legGroups,legMax,deadline,slots,maxAnte,withPacks};
 }
 
-/* 返回 true = 这个种子有戏，值得完整算一遍 */
+/* 每个底注用到的 key 编号，第一次用到时登记 */
+const _FK=[];
+function fk(a){
+  let k=_FK[a];if(k)return k;
+  return _FK[a]={cdt:kid("cdt"+a),rSho:kid("rarity"+a+"sho"),rBuf:kid("rarity"+a+"buf"),
+    jSho:[0,kid("Joker1sho"+a),kid("Joker2sho"+a),kid("Joker3sho"+a)],
+    jBuf:[0,kid("Joker1buf"+a),kid("Joker2buf"+a),kid("Joker3buf"+a)],
+    pack:kid("shop_pack"+a),sT:kid("soul_Tarot"+a),sS:kid("soul_Spectral"+a)};
+}
+const K_J4=kid("Joker4");
+
+/* 返回 true = 这个种子有戏，值得完整算一遍。
+   分两遍：先只看灵魂牌（便宜，而且大多数种子在这里就被淘汰），再看普通到稀有小丑。
+   每条随机流只认自己的 key，不同 key 谁先算谁后算不影响结果；
+   两遍都要用的卡包种类只掷一次，存起来给第二遍用。 */
+const _PK=[];
 function fastScan(seed,plan){
   const run=_shared.reset(seed);
   const found=new Map();   /* 名字 → 最早出现的底注 */
-  const mark=(n,a)=>{ if(!found.has(n))found.set(n,a); };
-  const st={};
-  const {needRar,needLeg,slots,maxAnte,withPacks}=plan;
-
-  for(let a=1;a<=maxAnte;a++){
-    for(let s=1;s<=slots;s++){
-      const t=run.rand("cdt"+a)*28;
-      if(t<20){                                   /* 小丑位 */
-        if(needRar.size){                         /* 只要传奇的话连稀有度都不用掷 */
-          const r=run.rand("rarity"+a+"sho");
-          const rar=r>0.95?3:(r>0.7?2:1);
-          if(needRar.has(rar))
-            mark(run.choice("Joker"+rar+"sho"+a,POOLS[rar],GATED_JOKERS),a);
-        }
-      }   /* 商店的塔罗/星球不会翻灵魂牌 */
+  const {needRar,needLeg,slots,maxAnte,withPacks,groups,gmax,legGroups,legMax}=plan;
+  let packDone=0;
+  const packsOf=a=>{       /* 第 a 底注的卡包，按底注顺序掷，掷过就记住 */
+    while(packDone<a){
+      const b=++packDone,K=fk(b),arr=_PK[b]||(_PK[b]=[]);arr.length=0;
+      for(let i=0,np=(b===1?4:6);i<np;i++)
+        arr.push(b===1&&i===0?"Buffoon Pack":run.weightedId(K.pack,PACKS));
     }
+    return _PK[a];
+  };
+  const groupOk=g=>{
+    for(const w of groups[g]){const fa=found.get(w.name);if(fa!==undefined&&fa<=w.ante)return true;}
+    return false;
+  };
 
-    if(withPacks){
-      for(let i=0,n=(a===1?4:6);i<n;i++){
-        let p;
-        if(a<=2&&!st.firstPack){st.firstPack=true;p="Buffoon Pack";}
-        else p=run.weighted("shop_pack"+a,PACKS);
+  /* 第一遍：灵魂牌 → 传奇 */
+  if(needLeg&&withPacks){
+    for(let a=1;a<=legMax;a++){
+      const K=fk(a);
+      for(const p of packsOf(a)){
         const info=packInfo(p);
-        if(info.kind==="Buffoon Pack"){
-          if(!needRar.size)continue;              /* 不要普通小丑就整包跳过 */
-          const locked=new Set(GATED_JOKERS);
-          for(let k=0;k<info.size;k++){
-            const r=run.rand("rarity"+a+"buf");
-            const rar=r>0.95?3:(r>0.7?2:1);
-            const n=run.choice("Joker"+rar+"buf"+a,POOLS[rar],locked);
-            locked.add(n);
-            if(needRar.has(rar))mark(n,a);
-          }
-        } else if(info.kind==="Arcana Pack"&&needLeg){
-          let done=false;
-          for(let k=0;k<info.size&&!done;k++)
-            if(run.rand("soul_Tarot"+a)>0.997){
-              mark(run.choice("Joker4",POOLS[4]),a);done=true;
+        if(info.kind==="Arcana Pack"){
+          for(let k=0;k<info.size;k++)
+            if(run.randId(K.sT)>0.997){
+              const n=run.choiceId(K_J4,POOLS[4]);
+              if(!found.has(n))found.set(n,a);
+              break;
             }
-        } else if(info.kind==="Spectral Pack"&&needLeg){
+        } else if(info.kind==="Spectral Pack"){
           let sd=false,hd=false;
           for(let k=0;k<info.size;k++){
-            const isSoul=!sd&&run.rand("soul_Spectral"+a)>0.997;
-            const isHole=!hd&&run.rand("soul_Spectral"+a)>0.997;
+            const isSoul=!sd&&run.randId(K.sS)>0.997;
+            const isHole=!hd&&run.randId(K.sS)>0.997;
             if(isHole)hd=true;
-            else if(isSoul){sd=true;mark(run.choice("Joker4",POOLS[4]),a);}
+            else if(isSoul){sd=true;const n=run.choiceId(K_J4,POOLS[4]);if(!found.has(n))found.set(n,a);}
+          }
+        }
+      }
+      /* 纯传奇的组过了期限还没中，直接扔 */
+      for(const g of legGroups) if(a>=gmax[g]&&!groupOk(g)) return false;
+    }
+  }
+  for(const g of legGroups) if(!groupOk(g)) return false;
+
+  /* 第二遍：商店和小丑包里的普通/罕见/稀有 */
+  for(let a=1;a<=maxAnte;a++){
+    if(needRar.size){
+      const K=fk(a);
+      for(let s=1;s<=slots;s++){
+        const t=run.randId(K.cdt)*28;
+        if(t<20){
+          const r=run.randId(K.rSho);
+          const rar=r>0.95?3:(r>0.7?2:1);
+          if(needRar.has(rar)){
+            const n=run.choiceId(K.jSho[rar],POOLS[rar],GATED_JOKERS);
+            if(!found.has(n))found.set(n,a);
+          }
+        }                                         /* 商店的塔罗/星球不会翻灵魂牌 */
+      }
+      if(withPacks){
+        let locked=null;
+        for(const p of packsOf(a)){
+          const info=packInfo(p);
+          if(info.kind!=="Buffoon Pack")continue;
+          locked=new Set(GATED_JOKERS);
+          for(let k=0;k<info.size;k++){
+            const r=run.randId(K.rBuf);
+            const rar=r>0.95?3:(r>0.7?2:1);
+            const n=run.choiceId(K.jBuf[rar],POOLS[rar],locked);
+            locked.add(n);
+            if(needRar.has(rar)&&!found.has(n))found.set(n,a);
           }
         }
       }
     }
-
     /* 提前放弃：某一组过了它的最晚底注还一个都没中 */
-    for(const grp of plan.groups){
-      const maxA=Math.max(...grp.map(w=>w.ante));
-      if(a>=maxA && !grp.some(w=>found.has(w.name)&&found.get(w.name)<=w.ante))
-        return false;
-    }
+    for(let g=0;g<groups.length;g++) if(a>=gmax[g]&&!groupOk(g)) return false;
   }
-  for(const grp of plan.groups)
-    if(!grp.some(w=>found.has(w.name)&&found.get(w.name)<=w.ante)) return false;
+  for(let g=0;g<groups.length;g++) if(!groupOk(g)) return false;
   return true;
 }
 
