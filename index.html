@@ -381,6 +381,12 @@ function jokerEdition(run,src,ante){
   return null;
 }
 
+/* 开局就锁住的牌：源码里它们在池子里占着位子（UNAVAILABLE），抽到了要重抽 */
+/* 金票/钢铁/石头/幸运猫/玻璃 要牌组里有对应增强牌；卡文迪什要大麦克香蕉灭绝过 */
+const GATED_JOKERS=new Set(["Golden Ticket","Steel Joker","Stone Joker","Lucky Cat","Glass Joker","Cavendish"]);
+/* 行星X/谷神星/阋神星 要先打出过对应牌型 */
+const GATED_PLANETS=new Set(["Planet X","Ceres","Eris"]);
+
 /* 商店第 n 个位置卖什么 */
 function shopSlot(run,ante){
   const t=run.rand("cdt"+ante)*28;
@@ -388,7 +394,7 @@ function shopSlot(run,ante){
   if(t>=20) return {type:t<24?"塔罗牌":"星球牌"};
   const r=run.rand("rarity"+ante+"sho");
   const rarity=r>0.95?3:(r>0.7?2:1);
-  const name=run.pick("Joker"+rarity+"sho"+ante,POOLS[rarity]);
+  const name=run.choice("Joker"+rarity+"sho"+ante,POOLS[rarity],GATED_JOKERS);
   return {type:"joker",name,rarity,edition:jokerEdition(run,"sho",ante)};
 }
 
@@ -448,7 +454,7 @@ function packName(p){
 /* 包里装了什么 */
 function openPack(run,p,ante){
   const {kind,size}=packInfo(p);
-  const locked=new Set(),out=[];
+  const locked=new Set(kind==="Celestial Pack"?GATED_PLANETS:GATED_JOKERS),out=[];
   let soulDone=false,holeDone=false;
   for(let i=0;i<size;i++){
     let c;
@@ -578,7 +584,7 @@ function fastScan(seed,plan){
           const r=run.rand("rarity"+a+"sho");
           const rar=r>0.95?3:(r>0.7?2:1);
           if(needRar.has(rar))
-            mark(run.choice("Joker"+rar+"sho"+a,POOLS[rar]),a);
+            mark(run.choice("Joker"+rar+"sho"+a,POOLS[rar],GATED_JOKERS),a);
         }
       }   /* 商店的塔罗/星球不会翻灵魂牌 */
     }
@@ -591,7 +597,7 @@ function fastScan(seed,plan){
         const info=packInfo(p);
         if(info.kind==="Buffoon Pack"){
           if(!needRar.size)continue;              /* 不要普通小丑就整包跳过 */
-          const locked=new Set();
+          const locked=new Set(GATED_JOKERS);
           for(let k=0;k<info.size;k++){
             const r=run.rand("rarity"+a+"buf");
             const rar=r>0.95?3:(r>0.7?2:1);
@@ -729,6 +735,12 @@ function jokerEdition(run,src,ante){
   return null;
 }
 
+/* 开局就锁住的牌：源码里它们在池子里占着位子（UNAVAILABLE），抽到了要重抽 */
+/* 金票/钢铁/石头/幸运猫/玻璃 要牌组里有对应增强牌；卡文迪什要大麦克香蕉灭绝过 */
+const GATED_JOKERS=new Set(["Golden Ticket","Steel Joker","Stone Joker","Lucky Cat","Glass Joker","Cavendish"]);
+/* 行星X/谷神星/阋神星 要先打出过对应牌型 */
+const GATED_PLANETS=new Set(["Planet X","Ceres","Eris"]);
+
 /* 商店第 n 个位置卖什么 */
 function shopSlot(run,ante){
   const t=run.rand("cdt"+ante)*28;
@@ -736,7 +748,7 @@ function shopSlot(run,ante){
   if(t>=20) return {type:t<24?"塔罗牌":"星球牌"};
   const r=run.rand("rarity"+ante+"sho");
   const rarity=r>0.95?3:(r>0.7?2:1);
-  const name=run.pick("Joker"+rarity+"sho"+ante,POOLS[rarity]);
+  const name=run.choice("Joker"+rarity+"sho"+ante,POOLS[rarity],GATED_JOKERS);
   return {type:"joker",name,rarity,edition:jokerEdition(run,"sho",ante)};
 }
 
@@ -796,7 +808,7 @@ function packName(p){
 /* 包里装了什么 */
 function openPack(run,p,ante){
   const {kind,size}=packInfo(p);
-  const locked=new Set(),out=[];
+  const locked=new Set(kind==="Celestial Pack"?GATED_PLANETS:GATED_JOKERS),out=[];
   let soulDone=false,holeDone=false;
   for(let i=0;i<size;i++){
     let c;
@@ -926,7 +938,7 @@ function fastScan(seed,plan){
           const r=run.rand("rarity"+a+"sho");
           const rar=r>0.95?3:(r>0.7?2:1);
           if(needRar.has(rar))
-            mark(run.choice("Joker"+rar+"sho"+a,POOLS[rar]),a);
+            mark(run.choice("Joker"+rar+"sho"+a,POOLS[rar],GATED_JOKERS),a);
         }
       }   /* 商店的塔罗/星球不会翻灵魂牌 */
     }
@@ -939,7 +951,7 @@ function fastScan(seed,plan){
         const info=packInfo(p);
         if(info.kind==="Buffoon Pack"){
           if(!needRar.size)continue;              /* 不要普通小丑就整包跳过 */
-          const locked=new Set();
+          const locked=new Set(GATED_JOKERS);
           for(let k=0;k<info.size;k++){
             const r=run.rand("rarity"+a+"buf");
             const rar=r>0.95?3:(r>0.7?2:1);
@@ -983,7 +995,7 @@ function matchFast(seed,plan){
   return matchSeed(seed,plan.groups,plan.slots,plan.maxAnte,plan.withPacks);
 }
 
-const CN={"Joker": "小丑", "Greedy Joker": "贪婪小丑", "Lusty Joker": "色欲小丑", "Wrathful Joker": "愤怒小丑", "Gluttonous Joker": "暴食小丑", "Jolly Joker": "欢乐小丑", "Zany Joker": "滑稽小丑", "Mad Joker": "疯狂小丑", "Crazy Joker": "狂野小丑", "Droll Joker": "滑稽小丑", "Sly Joker": "奸诈小丑", "Wily Joker": "狡猾小丑", "Clever Joker": "聪敏小丑", "Devious Joker": "阴险小丑", "Crafty Joker": "精明小丑", "Half Joker": "半张小丑", "Credit Card": "信用卡", "Banner": "旗帜", "Mystic Summit": "神秘之峰", " 8 Ball": "八号球", "Misprint": "印错", "Raised Fist": "致胜之拳", "Chaos the Clown": "混沌小丑", "Scary Face": "恐怖面孔", "Abstract Joker": "抽象小丑", "Delayed Gratification": "延迟满足", "Gros Michel": "大麦克香蕉", "Even Steven": "偶数史蒂文", "Odd Todd": "奇数托德", "Scholar": "学者", "Business Card": "名片", "Supernova": "超新星", "Ride the Bus": "搭乘巴士", "Egg": "蛋", "Runner": "跑步选手", "Ice Cream": "冰淇淋", "Splash": "飞溅", "Blue Joker": "蓝色小丑", "Faceless Joker": "无面小丑", "Green Joker": "绿色小丑", "Superposition": "叠加态", "To Do List": "待办清单", "Cavendish": "卡文迪什", "Red Card": "红牌", "Square Joker": "方块小丑", "Riff raff": "乌合之众", "Photograph": "照片", "Reserved Parking": "私人车位", "Mail In Rebate": "邮件回扣", "Hallucination": "幻觉", "Fortune Teller": "占卜师", "Juggler": "杂耍师", "Drunkard": "醉汉", "Golden Joker": "黄金小丑", "Popcorn": "爆米花", "Walkie Talkie": "对讲机", "Smiley Face": "笑脸", "Golden Ticket": "金票", "Swashbuckler": "侠客", "Hanging Chad": "未断选票", "Shoot the Moon": "射月", "Joker Stencil": "小丑模板", "Four Fingers": "四指", "Mime": "哑剧演员", "Ceremonial Dagger": "仪式匕首", "Marble Joker": "大理石小丑", "Loyalty Card": "会员卡", "Dusk": "黄昏", "Fibonacci": "斐波那契", "Steel Joker": "钢铁小丑", "Hack": "烂脱口秀演员", "Pareidolia": "幻视", "Space Joker": "太空小丑", "Burglar": "窃贼", "Blackboard": "黑板", "Sixth Sense": "第六感", "Constellation": "星座", "Hiker": "徒步者", "Card Sharp": "老千小丑", "Madness": "疯狂", "Seance": "通灵", "Vampire": "吸血鬼", "Shortcut": "捷径", "Hologram": "全息影像", "Cloud 9": "九霄云外", "Rocket": "火箭", "Midas Mask": "迈达斯面具", "Luchador": "摔角手", "Gift Card": "礼品卡", "Turtle Bean": "龟豆", "Erosion": "侵蚀", "To the Moon": "飞向月球", "Stone Joker": "石头小丑", "Lucky Cat": "幸运猫", "Bull": "公牛", "Diet Cola": "无糖可乐", "Trading Card": "交易卡", "Flash Card": "抽认卡", "Spare Trousers": "备用长裤", "Ramen": "拉面", "Seltzer": "苏打水", "Castle": "城堡", "Mr Bones": "骷髅先生", "Acrobat": "杂技演员", "Sock and Buskin": "悲与喜", "Troubadour": "吟游诗人", "Certificate": "证书", "Smeared Joker": "涂抹小丑", "Throwback": "复古", "Rough Gem": "原石", "Bloodstone": "血石", "Arrowhead": "箭头", "Onyx Agate": "缟玛瑙", "Glass Joker": "玻璃小丑", "Showman": "马戏团长", "Flower Pot": "花盆", "Merry Andy": "快乐安迪", "Oops All 6s": "六六大顺", "The Idol": "偶像", "Seeing Double": "重影", "Matador": "斗牛士", "Satellite": "卫星", "Cartomancer": "纸牌占卜师", "Astronomer": "天文学家", "Bootstraps": "提靴带", "DNA": "DNA", "Vagabond": "流浪汉", "Baron": "男爵", "Obelisk": "方尖碑", "Baseball Card": "棒球卡", "Ancient Joker": "古代小丑", "Campfire": "营火", "Blueprint": "蓝图", "Wee Joker": "小小丑", "Hit the Road": "上路吧杰克", "The Duo": "二重奏", "The Trio": "三重奏", "The Family": "一家人", "The Order": "秩序", "The Tribe": "部落", "Stuntman": "特技演员", "Invisible Joker": "隐形小丑", "Brainstorm": "头脑风暴", "Drivers License": "驾驶执照", "Burnt Joker": "烧焦小丑", "Canio": "卡尼奥", "Triboulet": "特里布莱", "Yorick": "约里克", "Chicot": "希科", "Perkeo": "帕奇欧"};
+const CN={"Joker": "小丑", "Greedy Joker": "贪婪小丑", "Lusty Joker": "色欲小丑", "Wrathful Joker": "愤怒小丑", "Gluttonous Joker": "暴食小丑", "Jolly Joker": "开心小丑", "Zany Joker": "古怪小丑", "Mad Joker": "疯狂小丑", "Crazy Joker": "狂野小丑", "Droll Joker": "滑稽小丑", "Sly Joker": "奸诈小丑", "Wily Joker": "狡猾小丑", "Clever Joker": "聪敏小丑", "Devious Joker": "阴险小丑", "Crafty Joker": "精明小丑", "Half Joker": "半张小丑", "Credit Card": "信用卡", "Banner": "旗帜", "Mystic Summit": "神秘之峰", " 8 Ball": "八号球", "Misprint": "印错", "Raised Fist": "致胜之拳", "Chaos the Clown": "混沌小丑", "Scary Face": "恐怖面孔", "Abstract Joker": "抽象小丑", "Delayed Gratification": "延迟满足", "Gros Michel": "大麦克香蕉", "Even Steven": "偶数史蒂文", "Odd Todd": "奇数托德", "Scholar": "学者", "Business Card": "名片", "Supernova": "超新星", "Ride the Bus": "搭乘巴士", "Egg": "蛋", "Runner": "跑步选手", "Ice Cream": "冰淇淋", "Splash": "飞溅", "Blue Joker": "蓝色小丑", "Faceless Joker": "无面小丑", "Green Joker": "绿色小丑", "Superposition": "叠加态", "To Do List": "待办清单", "Cavendish": "卡文迪什", "Red Card": "红牌", "Square Joker": "方块小丑", "Riff raff": "乌合之众", "Photograph": "照片", "Reserved Parking": "私人车位", "Mail In Rebate": "邮件回扣", "Hallucination": "幻觉", "Fortune Teller": "占卜师", "Juggler": "杂耍师", "Drunkard": "醉汉", "Golden Joker": "黄金小丑", "Popcorn": "爆米花", "Walkie Talkie": "对讲机", "Smiley Face": "笑脸", "Golden Ticket": "金票", "Swashbuckler": "侠盗", "Hanging Chad": "未断选票", "Shoot the Moon": "射月", "Joker Stencil": "小丑模板", "Four Fingers": "四指", "Mime": "哑剧演员", "Ceremonial Dagger": "仪式匕首", "Marble Joker": "大理石小丑", "Loyalty Card": "会员卡", "Dusk": "黄昏", "Fibonacci": "斐波那契", "Steel Joker": "钢铁小丑", "Hack": "烂脱口秀演员", "Pareidolia": "幻视", "Space Joker": "太空小丑", "Burglar": "窃贼", "Blackboard": "黑板", "Sixth Sense": "第六感", "Constellation": "星座", "Hiker": "徒步者", "Card Sharp": "老千小丑", "Madness": "疯狂", "Seance": "通灵", "Vampire": "吸血鬼", "Shortcut": "捷径", "Hologram": "全息影像", "Cloud 9": "九霄云外", "Rocket": "火箭", "Midas Mask": "迈达斯面具", "Luchador": "摔角手", "Gift Card": "礼品卡", "Turtle Bean": "龟豆", "Erosion": "侵蚀", "To the Moon": "飞向月球", "Stone Joker": "石头小丑", "Lucky Cat": "幸运猫", "Bull": "公牛", "Diet Cola": "无糖可乐", "Trading Card": "交易卡", "Flash Card": "抽认卡", "Spare Trousers": "备用长裤", "Ramen": "拉面", "Seltzer": "苏打水", "Castle": "城堡", "Mr Bones": "骷髅先生", "Acrobat": "杂技演员", "Sock and Buskin": "悲与喜", "Troubadour": "吟游诗人", "Certificate": "证书", "Smeared Joker": "涂抹小丑", "Throwback": "复古", "Rough Gem": "原石", "Bloodstone": "血石", "Arrowhead": "箭头", "Onyx Agate": "缟玛瑙", "Glass Joker": "玻璃小丑", "Showman": "马戏团长", "Flower Pot": "花盆", "Merry Andy": "快乐安迪", "Oops All 6s": "六六大顺", "The Idol": "偶像", "Seeing Double": "重影", "Matador": "斗牛士", "Satellite": "卫星", "Cartomancer": "纸牌占卜师", "Astronomer": "天文学家", "Bootstraps": "提靴带", "DNA": "DNA", "Vagabond": "流浪汉", "Baron": "男爵", "Obelisk": "方尖碑", "Baseball Card": "棒球卡", "Ancient Joker": "古代小丑", "Campfire": "营火", "Blueprint": "蓝图", "Wee Joker": "小小丑", "Hit the Road": "上路吧杰克", "The Duo": "二重奏", "The Trio": "三重奏", "The Family": "一家人", "The Order": "秩序", "The Tribe": "部落", "Stuntman": "特技演员", "Invisible Joker": "隐形小丑", "Brainstorm": "头脑风暴", "Drivers License": "驾驶执照", "Burnt Joker": "烧焦小丑", "Canio": "卡尼奥", "Triboulet": "特里布莱", "Yorick": "约里克", "Chicot": "希科", "Perkeo": "帕奇欧"};
 
 const JPOS={"Joker": [0, 0], "Greedy Joker": [6, 1], "Lusty Joker": [7, 1], "Wrathful Joker": [8, 1], "Gluttonous Joker": [9, 1], "Jolly Joker": [2, 0], "Zany Joker": [3, 0], "Mad Joker": [4, 0], "Crazy Joker": [5, 0], "Droll Joker": [6, 0], "Sly Joker": [0, 14], "Wily Joker": [1, 14], "Clever Joker": [2, 14], "Devious Joker": [3, 14], "Crafty Joker": [4, 14], "Half Joker": [7, 0], "Credit Card": [5, 1], "Banner": [1, 2], "Mystic Summit": [2, 2], " 8 Ball": [0, 5], "Misprint": [6, 2], "Raised Fist": [8, 2], "Chaos the Clown": [1, 0], "Scary Face": [2, 3], "Abstract Joker": [3, 3], "Delayed Gratification": [4, 3], "Gros Michel": [7, 6], "Even Steven": [8, 3], "Odd Todd": [9, 3], "Scholar": [3, 6], "Business Card": [1, 4], "Supernova": [2, 4], "Ride the Bus": [1, 6], "Egg": [0, 10], "Runner": [3, 10], "Ice Cream": [4, 10], "Splash": [6, 10], "Blue Joker": [7, 10], "Faceless Joker": [1, 11], "Green Joker": [2, 11], "Superposition": [3, 11], "To Do List": [4, 11], "Cavendish": [5, 11], "Red Card": [7, 11], "Square Joker": [9, 11], "Riff raff": [1, 12], "Photograph": [2, 13], "Reserved Parking": [6, 13], "Mail In Rebate": [7, 13], "Hallucination": [9, 13], "Fortune Teller": [7, 5], "Juggler": [0, 1], "Drunkard": [1, 1], "Golden Joker": [9, 2], "Popcorn": [1, 15], "Walkie Talkie": [8, 15], "Smiley Face": [6, 15], "Golden Ticket": [5, 3], "Swashbuckler": [9, 5], "Hanging Chad": [9, 6], "Shoot the Moon": [2, 6], "Joker Stencil": [2, 5], "Four Fingers": [6, 6], "Mime": [4, 1], "Ceremonial Dagger": [5, 5], "Marble Joker": [3, 2], "Loyalty Card": [4, 2], "Dusk": [4, 7], "Fibonacci": [1, 5], "Steel Joker": [7, 2], "Hack": [5, 2], "Pareidolia": [6, 3], "Space Joker": [3, 5], "Burglar": [1, 10], "Blackboard": [2, 10], "Sixth Sense": [8, 10], "Constellation": [9, 10], "Hiker": [0, 11], "Card Sharp": [6, 11], "Madness": [8, 11], "Seance": [0, 12], "Vampire": [2, 12], "Shortcut": [3, 12], "Hologram": [4, 12], "Cloud 9": [7, 12], "Rocket": [8, 12], "Midas Mask": [0, 13], "Luchador": [1, 13], "Gift Card": [3, 13], "Turtle Bean": [4, 13], "Erosion": [5, 13], "To the Moon": [8, 13], "Stone Joker": [9, 0], "Lucky Cat": [5, 14], "Bull": [7, 14], "Diet Cola": [8, 14], "Trading Card": [9, 14], "Flash Card": [0, 15], "Spare Trousers": [4, 15], "Ramen": [2, 15], "Seltzer": [3, 15], "Castle": [9, 15], "Mr Bones": [3, 4], "Acrobat": [2, 1], "Sock and Buskin": [3, 1], "Troubadour": [0, 2], "Certificate": [8, 8], "Smeared Joker": [4, 6], "Throwback": [5, 7], "Rough Gem": [9, 7], "Bloodstone": [0, 8], "Arrowhead": [1, 8], "Onyx Agate": [2, 8], "Glass Joker": [1, 3], "Showman": [6, 5], "Flower Pot": [0, 6], "Merry Andy": [8, 0], "Oops All 6s": [5, 6], "The Idol": [6, 7], "Seeing Double": [4, 4], "Matador": [4, 5], "Satellite": [8, 7], "Cartomancer": [7, 3], "Astronomer": [2, 7], "Bootstraps": [9, 8], "DNA": [5, 10], "Vagabond": [5, 12], "Baron": [6, 12], "Obelisk": [9, 12], "Baseball Card": [6, 14], "Ancient Joker": [7, 15], "Campfire": [5, 15], "Blueprint": [0, 3], "Wee Joker": [0, 4], "Hit the Road": [8, 5], "The Duo": [5, 4], "The Trio": [6, 4], "The Family": [7, 4], "The Order": [8, 4], "The Tribe": [9, 4], "Stuntman": [8, 6], "Invisible Joker": [1, 7], "Brainstorm": [7, 7], "Drivers License": [0, 7], "Burnt Joker": [3, 7], "Canio": [3, 8], "Triboulet": [4, 8], "Yorick": [5, 8], "Chicot": [6, 8], "Perkeo": [7, 8]};
 const EDS=["","负片","多彩","全息","闪箔"];
