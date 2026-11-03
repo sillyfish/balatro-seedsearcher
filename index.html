@@ -448,17 +448,38 @@ class Run{
     this.rng=new LuaRandom();
     this.sv=new Float64Array(256);this.sg=new Float64Array(256);   /* 状态值 / 属于第几次 reset */
     this.hv=new Float64Array(64);this.hg=new Float64Array(64);     /* 种子那段哈希，按 key 长度缓存 */
+    this.sfv=new Float64Array(64);this.sfg=new Float64Array(64);   /* 种子去掉第一位的那段，按 key 长度缓存 */
+    this.suf=null;this.sufG=0;
     this.g=0;this.reset(s);
   }
-  reset(s){this.seedStr=s;this.hashed=pseudohash(s);this.g++;return this;}
+  reset(s){
+    this.seedStr=s;this.g++;
+    /* 只有第一位变了的话，后面那段的中间结果还能接着用 */
+    const suf=s.slice(1);
+    if(suf!==this.suf){this.suf=suf;this.sufG++;}
+    this.hashed=this.seedPart(0);           /* 跟 pseudohash(s) 逐位相同 */
+    return this;
+  }
   /* pseudohash(key+seed) 从末尾往前算，所以种子那几个字符先算，
      中间结果只跟 key 的长度有关，同一个种子里可以共用 */
   seedPart(klen){
     if(klen>=this.hv.length){const n=klen*2+1;const a=new Float64Array(n),b=new Float64Array(n);
       a.set(this.hv);b.set(this.hg);this.hv=a;this.hg=b;}
     if(this.hg[klen]===this.g)return this.hv[klen];
-    const s=this.seedStr,L=klen+s.length;let num=1;
-    for(let i=L;i>klen;i--)num=((1.1239285023/num)*s.charCodeAt(i-klen-1)*Math.PI+Math.PI*i)%1;
+    const s=this.seedStr,L=klen+s.length;
+    if(!s.length){this.hv[klen]=1;this.hg[klen]=this.g;return 1;}
+    /* pseudohash 从末尾往前算，第一位最后才算到。
+       枚举时让第一位变得最快，后面七位的中间结果 35 个种子共用 */
+    if(klen>=this.sfv.length){const n=klen*2+1;const a=new Float64Array(n),b=new Float64Array(n);
+      a.set(this.sfv);b.set(this.sfg);this.sfv=a;this.sfg=b;}
+    let num;
+    if(this.sfg[klen]===this.sufG)num=this.sfv[klen];
+    else{
+      num=1;
+      for(let i=L;i>klen+1;i--)num=((1.1239285023/num)*s.charCodeAt(i-klen-1)*Math.PI+Math.PI*i)%1;
+      this.sfv[klen]=num;this.sfg[klen]=this.sufG;
+    }
+    num=((1.1239285023/num)*s.charCodeAt(0)*Math.PI+Math.PI*(klen+1))%1;
     this.hv[klen]=num;this.hg[klen]=this.g;return num;
   }
   pseudoseedId(id){
@@ -589,6 +610,78 @@ Run.prototype.choiceId=function(id,items,locked){
   return it;
 };
 
+/* ===== 线性捷径：只算随机数最高的 10 个比特 =====
+   LuaJIT 的随机数只有位移、异或、按常数取位，全是线性的。
+   所以掷出来的数的每一个比特，都等于初始状态里某些固定比特的异或，
+   "哪些比特"跟种子无关，开场算一次存成掩码。
+   判断"是不是大于 0.95"这种事，大多数时候前几个比特就够了，
+   判不出来的才回头老实把整个数算出来，结果一位不差。 */
+const FB=10;                                   /* 算最高几位 */
+const FM=new Uint32Array(8*FB);                /* [比特][h0,l0,h1,l1,h2,l2,h3,l3] */
+(function(){
+  const g=new LuaRandom(),H=["h0","h1","h2","h3"],L=["l0","l1","l2","l3"];
+  for(let i=0;i<4;i++)for(let j=0;j<64;j++){
+    for(let t=0;t<4;t++){g[H[t]]=0;g[L[t]]=0;}
+    if(j<32)g[L[i]]=(1<<j)>>>0; else g[H[i]]=(1<<(j-32))>>>0;
+    for(let s=0;s<11;s++)g.step();           /* 播种空转 10 轮 + 掷一次 */
+    for(let b=0;b<FB;b++) if((g._h>>>(19-b))&1){
+      const o=b*8+i*2+(j<32?1:0);
+      FM[o]=(FM[o]|(1<<(j&31)))>>>0;
+    }
+  }
+})();
+function topBits(d,k){
+  d=d*3.14159265358979323846+2.7182818284590452354;_f[0]=d;const h0=_u[1];let l0=_u[0];if(l0<2)l0=(l0+2)>>>0;
+  d=d*3.14159265358979323846+2.7182818284590452354;_f[0]=d;const h1=_u[1];let l1=_u[0];if(l1<64)l1=(l1+64)>>>0;
+  d=d*3.14159265358979323846+2.7182818284590452354;_f[0]=d;const h2=_u[1];let l2=_u[0];if(l2<512)l2=(l2+512)>>>0;
+  d=d*3.14159265358979323846+2.7182818284590452354;_f[0]=d;const h3=_u[1];let l3=_u[0];if(l3<131072)l3=(l3+131072)>>>0;
+  let q=0;
+  for(let b=0,o=0;b<k;b++,o+=8){
+    let x=(h0&FM[o])^(l0&FM[o+1])^(h1&FM[o+2])^(l1&FM[o+3])^(h2&FM[o+4])^(l2&FM[o+5])^(h3&FM[o+6])^(l3&FM[o+7]);
+    x^=x>>>16;x^=x>>>8;x^=x>>>4;
+    q=(q<<1)|((0x6996>>>(x&15))&1);
+  }
+  return q;
+}
+/* 掷一次，先只拿区间 [lo,hi)；判不出来再用 fullR() 补算，不会重复推进随机流 */
+/* k 位够判断阈值就用少一点：比大小 6 位，抽名字和抽卡包 10 位 */
+Run.prototype.fr=function(id,k){this._ps=this.pseudoseedId(id);const q=topBits(this._ps,k),u=1/(1<<k);this._lo=q*u;this._hi=(q+1)*u;};
+Run.prototype.fullR=function(){this.rng.seed(this._ps);return this.rng.double();};
+Run.prototype.rarFast=function(id){                    /* 同 r>0.95?3:(r>0.7?2:1) */
+  this.fr(id,6);const lo=this._lo,hi=this._hi;
+  if(lo>0.95)return 3;
+  if(hi<=0.95&&lo>0.7)return 2;
+  if(hi<=0.7)return 1;
+  const r=this.fullR();return r>0.95?3:(r>0.7?2:1);
+};
+Run.prototype.gtFast=function(id,th){                  /* 同 r>th */
+  this.fr(id,6);if(this._lo>th)return true;if(this._hi<=th)return false;return this.fullR()>th;
+};
+Run.prototype.ltMulFast=function(id,m,th){             /* 同 r*m<th */
+  this.fr(id,6);if(this._hi*m<th)return true;if(this._lo*m>=th)return false;return this.fullR()*m<th;
+};
+function _wIdx(items,poll){let idx=1,w=0;while(w<poll){if(idx>=items.length)return -1;w+=items[idx][1];idx++;}return idx-1;}
+Run.prototype.weightedFastId=function(id,items){
+  this.fr(id,FB);const T=items[0][1];
+  const a=_wIdx(items,this._lo*T),b=_wIdx(items,this._hi*T);
+  if(a>=0&&a===b)return items[a][0];
+  return items[_wIdx(items,this.fullR()*T)][0];
+};
+Run.prototype._pickFast=function(id,items){
+  this.fr(id,FB);const n=items.length,a=Math.floor(this._lo*n),b=Math.floor(this._hi*n);
+  if(a===b)return items[a];
+  return items[Math.floor(this.fullR()*n)];
+};
+Run.prototype.choiceFastId=function(id,items,locked){  /* 同 choiceId */
+  let it=this._pickFast(id,items);
+  if(it!=="RETRY"&&!(locked&&locked.has(it)))return it;
+  for(let n=2;n<=1000;n++){
+    it=this._pickFast(resampleId(id,n),items);
+    if(it!=="RETRY"&&!(locked&&locked.has(it)))return it;
+  }
+  return it;
+};
+
 /* 包的种类 → 里面几张、能选几张 */
 const _PINFO=Object.create(null);
 function packInfo(p){return _PINFO[p]||(_PINFO[p]=packInfo0(p));}
@@ -682,10 +775,11 @@ function scanSeed(seed,antes,slots,withPacks,stickerMode){
 }
 const CHARS="ABCDEFGHIJKLMNOPQRSTUVWXYZ123456789";
 const TOTAL=Math.pow(35,8);
-function seedFromIndex(n){let s="";for(let i=0;i<8;i++){s=CHARS[n%35]+s;n=Math.floor(n/35);}return s;}
+/* 第一位变得最快（见 seedPart），所以编号的最低位对应种子的第一个字符 */
+function seedFromIndex(n){let s="";for(let i=0;i<8;i++){s+=CHARS[n%35];n=Math.floor(n/35);}return s;}
 function indexFromSeed(str){
   const s=str.toUpperCase().padStart(8,"A");let n=0;
-  for(let i=0;i<8;i++){const p=CHARS.indexOf(s[i]);n=n*35+(p<0?0:p);}
+  for(let i=7;i>=0;i--){const p=CHARS.indexOf(s[i]);n=n*35+(p<0?0:p);}
   return n;
 }
 function matchCandidates(got,groups,editionNeeds,separatePacks){
@@ -776,7 +870,7 @@ const K_J4=kid("Joker4");
    每轮内部再分两遍：先看灵魂牌，再看普通到稀有小丑。
    每条随机流只认自己的 key，不同 key 谁先算谁后算不影响结果；
    两遍都要用的卡包种类只掷一次，存起来给第二遍用。 */
-const _PK=[];
+const _PK=[],_LZ=[];
 function fastScan(seed,plan,exact){
   const run=_shared.reset(seed);
   const found=new Map();   /* 名字 → 最早出现的底注 */
@@ -790,7 +884,7 @@ function fastScan(seed,plan,exact){
     while(packDone<a){
       const b=++packDone,K=fk(b),arr=_PK[b]||(_PK[b]=[]);arr.length=0;
       for(let i=0,np=(b===1?4:6);i<np;i++)
-        arr.push(b===1&&i===0?"Buffoon Pack":run.weightedId(K.pack,PACKS));
+        arr.push(b===1&&i===0?"Buffoon Pack":run.weightedFastId(K.pack,PACKS));
     }
     return _PK[a];
   };
@@ -807,7 +901,7 @@ function fastScan(seed,plan,exact){
         const info=packInfo(p);
         if(info.kind==="Arcana Pack"){
           for(let k=0;k<info.size;k++)
-            if(run.randId(K.sT)>0.997){
+            if(doExact?run.randId(K.sT)>0.997:run.gtFast(K.sT,0.997)){
               const n=run.choiceId(K_J4,POOLS[4]);
               const edition=needEditions?jokerEdition(run,"sou",a):"";
               if(!found.has(n))found.set(n,a);
@@ -817,8 +911,8 @@ function fastScan(seed,plan,exact){
         } else if(info.kind==="Spectral Pack"){
           let sd=false,hd=false;
           for(let k=0;k<info.size;k++){
-            const isSoul=!sd&&run.randId(K.sS)>0.997;
-            const isHole=!hd&&run.randId(K.sS)>0.997;
+            const isSoul=!sd&&(doExact?run.randId(K.sS)>0.997:run.gtFast(K.sS,0.997));
+            const isHole=!hd&&(doExact?run.randId(K.sS)>0.997:run.gtFast(K.sS,0.997));
             if(isHole)hd=true;
             else if(isSoul){
               sd=true;
@@ -838,9 +932,33 @@ function fastScan(seed,plan,exact){
 
   /* 第二遍：商店和小丑包里的普通/罕见/稀有 */
   for(let a=1;a<=maxAnte;a++){
+    if(needRar.size&&!doExact){
+      /* 懒算商店：cdt、稀有度、具体是谁三条流互不影响。
+         先连掷稀有度（最多 slots 个小丑位），只给用得上的稀有度抽名字；
+         一个目标都没抽到，这一底注的商店就不用掷 cdt 了。
+         真抽到了，再掷 cdt 数清楚前 slots 个位置里到底有几个小丑。
+         多掷的那几次只落在本底注商店自己的流上，不影响任何别的东西 */
+      const K=fk(a),names=_LZ;let hit=false;
+      for(let k=0;k<slots;k++){
+        const rar=run.rarFast(K.rSho);
+        if(needRar.has(rar)){
+          const n=run.choiceFastId(K.jSho[rar],POOLS[rar],GATED_JOKERS);
+          names[k]=n;if(needNames.has(n))hit=true;
+        } else names[k]=null;
+      }
+      if(hit){
+        let k=0;
+        for(let s=1;s<=slots;s++){
+          if(run.ltMulFast(K.cdt,28,20)){
+            const n=names[k++];
+            if(n&&!found.has(n))found.set(n,a);
+          }
+        }
+      }
+    }
     if(needRar.size){
       const K=fk(a);
-      for(let s=1;s<=slots;s++){
+      if(doExact) for(let s=1;s<=slots;s++){
         const t=run.randId(K.cdt)*28;
         if(t<20){
           const r=run.randId(K.rSho);
@@ -866,9 +984,9 @@ function fastScan(seed,plan,exact){
           if(info.kind!=="Buffoon Pack")continue;
           locked=new Set(GATED_JOKERS);
           for(let k=0;k<info.size;k++){
-            const r=run.randId(K.rBuf);
-            const rar=r>0.95?3:(r>0.7?2:1);
-            const n=run.choiceId(K.jBuf[rar],POOLS[rar],locked);
+            let rar,n;
+            if(doExact){const r=run.randId(K.rBuf);rar=r>0.95?3:(r>0.7?2:1);n=run.choiceId(K.jBuf[rar],POOLS[rar],locked);}
+            else{rar=run.rarFast(K.rBuf);n=run.choiceFastId(K.jBuf[rar],POOLS[rar],locked);}
             locked.add(n);
             if(needRar.has(rar)&&!found.has(n))found.set(n,a);
             const sticker=needStickers?jokerSticker(run,"buf",a,plan.stickerMode,n):null;
@@ -997,17 +1115,38 @@ class Run{
     this.rng=new LuaRandom();
     this.sv=new Float64Array(256);this.sg=new Float64Array(256);   /* 状态值 / 属于第几次 reset */
     this.hv=new Float64Array(64);this.hg=new Float64Array(64);     /* 种子那段哈希，按 key 长度缓存 */
+    this.sfv=new Float64Array(64);this.sfg=new Float64Array(64);   /* 种子去掉第一位的那段，按 key 长度缓存 */
+    this.suf=null;this.sufG=0;
     this.g=0;this.reset(s);
   }
-  reset(s){this.seedStr=s;this.hashed=pseudohash(s);this.g++;return this;}
+  reset(s){
+    this.seedStr=s;this.g++;
+    /* 只有第一位变了的话，后面那段的中间结果还能接着用 */
+    const suf=s.slice(1);
+    if(suf!==this.suf){this.suf=suf;this.sufG++;}
+    this.hashed=this.seedPart(0);           /* 跟 pseudohash(s) 逐位相同 */
+    return this;
+  }
   /* pseudohash(key+seed) 从末尾往前算，所以种子那几个字符先算，
      中间结果只跟 key 的长度有关，同一个种子里可以共用 */
   seedPart(klen){
     if(klen>=this.hv.length){const n=klen*2+1;const a=new Float64Array(n),b=new Float64Array(n);
       a.set(this.hv);b.set(this.hg);this.hv=a;this.hg=b;}
     if(this.hg[klen]===this.g)return this.hv[klen];
-    const s=this.seedStr,L=klen+s.length;let num=1;
-    for(let i=L;i>klen;i--)num=((1.1239285023/num)*s.charCodeAt(i-klen-1)*Math.PI+Math.PI*i)%1;
+    const s=this.seedStr,L=klen+s.length;
+    if(!s.length){this.hv[klen]=1;this.hg[klen]=this.g;return 1;}
+    /* pseudohash 从末尾往前算，第一位最后才算到。
+       枚举时让第一位变得最快，后面七位的中间结果 35 个种子共用 */
+    if(klen>=this.sfv.length){const n=klen*2+1;const a=new Float64Array(n),b=new Float64Array(n);
+      a.set(this.sfv);b.set(this.sfg);this.sfv=a;this.sfg=b;}
+    let num;
+    if(this.sfg[klen]===this.sufG)num=this.sfv[klen];
+    else{
+      num=1;
+      for(let i=L;i>klen+1;i--)num=((1.1239285023/num)*s.charCodeAt(i-klen-1)*Math.PI+Math.PI*i)%1;
+      this.sfv[klen]=num;this.sfg[klen]=this.sufG;
+    }
+    num=((1.1239285023/num)*s.charCodeAt(0)*Math.PI+Math.PI*(klen+1))%1;
     this.hv[klen]=num;this.hg[klen]=this.g;return num;
   }
   pseudoseedId(id){
@@ -1138,6 +1277,78 @@ Run.prototype.choiceId=function(id,items,locked){
   return it;
 };
 
+/* ===== 线性捷径：只算随机数最高的 10 个比特 =====
+   LuaJIT 的随机数只有位移、异或、按常数取位，全是线性的。
+   所以掷出来的数的每一个比特，都等于初始状态里某些固定比特的异或，
+   "哪些比特"跟种子无关，开场算一次存成掩码。
+   判断"是不是大于 0.95"这种事，大多数时候前几个比特就够了，
+   判不出来的才回头老实把整个数算出来，结果一位不差。 */
+const FB=10;                                   /* 算最高几位 */
+const FM=new Uint32Array(8*FB);                /* [比特][h0,l0,h1,l1,h2,l2,h3,l3] */
+(function(){
+  const g=new LuaRandom(),H=["h0","h1","h2","h3"],L=["l0","l1","l2","l3"];
+  for(let i=0;i<4;i++)for(let j=0;j<64;j++){
+    for(let t=0;t<4;t++){g[H[t]]=0;g[L[t]]=0;}
+    if(j<32)g[L[i]]=(1<<j)>>>0; else g[H[i]]=(1<<(j-32))>>>0;
+    for(let s=0;s<11;s++)g.step();           /* 播种空转 10 轮 + 掷一次 */
+    for(let b=0;b<FB;b++) if((g._h>>>(19-b))&1){
+      const o=b*8+i*2+(j<32?1:0);
+      FM[o]=(FM[o]|(1<<(j&31)))>>>0;
+    }
+  }
+})();
+function topBits(d,k){
+  d=d*3.14159265358979323846+2.7182818284590452354;_f[0]=d;const h0=_u[1];let l0=_u[0];if(l0<2)l0=(l0+2)>>>0;
+  d=d*3.14159265358979323846+2.7182818284590452354;_f[0]=d;const h1=_u[1];let l1=_u[0];if(l1<64)l1=(l1+64)>>>0;
+  d=d*3.14159265358979323846+2.7182818284590452354;_f[0]=d;const h2=_u[1];let l2=_u[0];if(l2<512)l2=(l2+512)>>>0;
+  d=d*3.14159265358979323846+2.7182818284590452354;_f[0]=d;const h3=_u[1];let l3=_u[0];if(l3<131072)l3=(l3+131072)>>>0;
+  let q=0;
+  for(let b=0,o=0;b<k;b++,o+=8){
+    let x=(h0&FM[o])^(l0&FM[o+1])^(h1&FM[o+2])^(l1&FM[o+3])^(h2&FM[o+4])^(l2&FM[o+5])^(h3&FM[o+6])^(l3&FM[o+7]);
+    x^=x>>>16;x^=x>>>8;x^=x>>>4;
+    q=(q<<1)|((0x6996>>>(x&15))&1);
+  }
+  return q;
+}
+/* 掷一次，先只拿区间 [lo,hi)；判不出来再用 fullR() 补算，不会重复推进随机流 */
+/* k 位够判断阈值就用少一点：比大小 6 位，抽名字和抽卡包 10 位 */
+Run.prototype.fr=function(id,k){this._ps=this.pseudoseedId(id);const q=topBits(this._ps,k),u=1/(1<<k);this._lo=q*u;this._hi=(q+1)*u;};
+Run.prototype.fullR=function(){this.rng.seed(this._ps);return this.rng.double();};
+Run.prototype.rarFast=function(id){                    /* 同 r>0.95?3:(r>0.7?2:1) */
+  this.fr(id,6);const lo=this._lo,hi=this._hi;
+  if(lo>0.95)return 3;
+  if(hi<=0.95&&lo>0.7)return 2;
+  if(hi<=0.7)return 1;
+  const r=this.fullR();return r>0.95?3:(r>0.7?2:1);
+};
+Run.prototype.gtFast=function(id,th){                  /* 同 r>th */
+  this.fr(id,6);if(this._lo>th)return true;if(this._hi<=th)return false;return this.fullR()>th;
+};
+Run.prototype.ltMulFast=function(id,m,th){             /* 同 r*m<th */
+  this.fr(id,6);if(this._hi*m<th)return true;if(this._lo*m>=th)return false;return this.fullR()*m<th;
+};
+function _wIdx(items,poll){let idx=1,w=0;while(w<poll){if(idx>=items.length)return -1;w+=items[idx][1];idx++;}return idx-1;}
+Run.prototype.weightedFastId=function(id,items){
+  this.fr(id,FB);const T=items[0][1];
+  const a=_wIdx(items,this._lo*T),b=_wIdx(items,this._hi*T);
+  if(a>=0&&a===b)return items[a][0];
+  return items[_wIdx(items,this.fullR()*T)][0];
+};
+Run.prototype._pickFast=function(id,items){
+  this.fr(id,FB);const n=items.length,a=Math.floor(this._lo*n),b=Math.floor(this._hi*n);
+  if(a===b)return items[a];
+  return items[Math.floor(this.fullR()*n)];
+};
+Run.prototype.choiceFastId=function(id,items,locked){  /* 同 choiceId */
+  let it=this._pickFast(id,items);
+  if(it!=="RETRY"&&!(locked&&locked.has(it)))return it;
+  for(let n=2;n<=1000;n++){
+    it=this._pickFast(resampleId(id,n),items);
+    if(it!=="RETRY"&&!(locked&&locked.has(it)))return it;
+  }
+  return it;
+};
+
 /* 包的种类 → 里面几张、能选几张 */
 const _PINFO=Object.create(null);
 function packInfo(p){return _PINFO[p]||(_PINFO[p]=packInfo0(p));}
@@ -1231,10 +1442,11 @@ function scanSeed(seed,antes,slots,withPacks,stickerMode){
 }
 const CHARS="ABCDEFGHIJKLMNOPQRSTUVWXYZ123456789";
 const TOTAL=Math.pow(35,8);
-function seedFromIndex(n){let s="";for(let i=0;i<8;i++){s=CHARS[n%35]+s;n=Math.floor(n/35);}return s;}
+/* 第一位变得最快（见 seedPart），所以编号的最低位对应种子的第一个字符 */
+function seedFromIndex(n){let s="";for(let i=0;i<8;i++){s+=CHARS[n%35];n=Math.floor(n/35);}return s;}
 function indexFromSeed(str){
   const s=str.toUpperCase().padStart(8,"A");let n=0;
-  for(let i=0;i<8;i++){const p=CHARS.indexOf(s[i]);n=n*35+(p<0?0:p);}
+  for(let i=7;i>=0;i--){const p=CHARS.indexOf(s[i]);n=n*35+(p<0?0:p);}
   return n;
 }
 function matchCandidates(got,groups,editionNeeds,separatePacks){
@@ -1325,7 +1537,7 @@ const K_J4=kid("Joker4");
    每轮内部再分两遍：先看灵魂牌，再看普通到稀有小丑。
    每条随机流只认自己的 key，不同 key 谁先算谁后算不影响结果；
    两遍都要用的卡包种类只掷一次，存起来给第二遍用。 */
-const _PK=[];
+const _PK=[],_LZ=[];
 function fastScan(seed,plan,exact){
   const run=_shared.reset(seed);
   const found=new Map();   /* 名字 → 最早出现的底注 */
@@ -1339,7 +1551,7 @@ function fastScan(seed,plan,exact){
     while(packDone<a){
       const b=++packDone,K=fk(b),arr=_PK[b]||(_PK[b]=[]);arr.length=0;
       for(let i=0,np=(b===1?4:6);i<np;i++)
-        arr.push(b===1&&i===0?"Buffoon Pack":run.weightedId(K.pack,PACKS));
+        arr.push(b===1&&i===0?"Buffoon Pack":run.weightedFastId(K.pack,PACKS));
     }
     return _PK[a];
   };
@@ -1356,7 +1568,7 @@ function fastScan(seed,plan,exact){
         const info=packInfo(p);
         if(info.kind==="Arcana Pack"){
           for(let k=0;k<info.size;k++)
-            if(run.randId(K.sT)>0.997){
+            if(doExact?run.randId(K.sT)>0.997:run.gtFast(K.sT,0.997)){
               const n=run.choiceId(K_J4,POOLS[4]);
               const edition=needEditions?jokerEdition(run,"sou",a):"";
               if(!found.has(n))found.set(n,a);
@@ -1366,8 +1578,8 @@ function fastScan(seed,plan,exact){
         } else if(info.kind==="Spectral Pack"){
           let sd=false,hd=false;
           for(let k=0;k<info.size;k++){
-            const isSoul=!sd&&run.randId(K.sS)>0.997;
-            const isHole=!hd&&run.randId(K.sS)>0.997;
+            const isSoul=!sd&&(doExact?run.randId(K.sS)>0.997:run.gtFast(K.sS,0.997));
+            const isHole=!hd&&(doExact?run.randId(K.sS)>0.997:run.gtFast(K.sS,0.997));
             if(isHole)hd=true;
             else if(isSoul){
               sd=true;
@@ -1387,9 +1599,33 @@ function fastScan(seed,plan,exact){
 
   /* 第二遍：商店和小丑包里的普通/罕见/稀有 */
   for(let a=1;a<=maxAnte;a++){
+    if(needRar.size&&!doExact){
+      /* 懒算商店：cdt、稀有度、具体是谁三条流互不影响。
+         先连掷稀有度（最多 slots 个小丑位），只给用得上的稀有度抽名字；
+         一个目标都没抽到，这一底注的商店就不用掷 cdt 了。
+         真抽到了，再掷 cdt 数清楚前 slots 个位置里到底有几个小丑。
+         多掷的那几次只落在本底注商店自己的流上，不影响任何别的东西 */
+      const K=fk(a),names=_LZ;let hit=false;
+      for(let k=0;k<slots;k++){
+        const rar=run.rarFast(K.rSho);
+        if(needRar.has(rar)){
+          const n=run.choiceFastId(K.jSho[rar],POOLS[rar],GATED_JOKERS);
+          names[k]=n;if(needNames.has(n))hit=true;
+        } else names[k]=null;
+      }
+      if(hit){
+        let k=0;
+        for(let s=1;s<=slots;s++){
+          if(run.ltMulFast(K.cdt,28,20)){
+            const n=names[k++];
+            if(n&&!found.has(n))found.set(n,a);
+          }
+        }
+      }
+    }
     if(needRar.size){
       const K=fk(a);
-      for(let s=1;s<=slots;s++){
+      if(doExact) for(let s=1;s<=slots;s++){
         const t=run.randId(K.cdt)*28;
         if(t<20){
           const r=run.randId(K.rSho);
@@ -1415,9 +1651,9 @@ function fastScan(seed,plan,exact){
           if(info.kind!=="Buffoon Pack")continue;
           locked=new Set(GATED_JOKERS);
           for(let k=0;k<info.size;k++){
-            const r=run.randId(K.rBuf);
-            const rar=r>0.95?3:(r>0.7?2:1);
-            const n=run.choiceId(K.jBuf[rar],POOLS[rar],locked);
+            let rar,n;
+            if(doExact){const r=run.randId(K.rBuf);rar=r>0.95?3:(r>0.7?2:1);n=run.choiceId(K.jBuf[rar],POOLS[rar],locked);}
+            else{rar=run.rarFast(K.rBuf);n=run.choiceFastId(K.jBuf[rar],POOLS[rar],locked);}
             locked.add(n);
             if(needRar.has(rar)&&!found.has(n))found.set(n,a);
             const sticker=needStickers?jokerSticker(run,"buf",a,plan.stickerMode,n):null;
